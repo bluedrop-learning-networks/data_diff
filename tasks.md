@@ -36,17 +36,17 @@
   - [x] Test: Invalid mapping scenarios
 
 ## 4. Unique Identifier Handling
-- [ ] Implement automatic ID column detection
-  - [ ] Column name analysis ("id", "key", etc.)
-    - [ ] Test: ID column detection (test_scenarios.md #3)
-  - [ ] Data uniqueness analysis
-    - [ ] Test: Uniqueness validation
-- [ ] Add manual ID column specification
-  - [ ] Test: Custom ID column configuration
-- [ ] Implement ID column validation
-  - [ ] Test: Invalid ID columns
-- [ ] Add duplicate ID detection
-  - [ ] Test: Duplicate ID handling
+- [x] Implement automatic ID column detection
+  - [x] Column name analysis ("id", "key", etc.)
+    - [x] Test: ID column detection (test_scenarios.md #3)
+  - [x] Data uniqueness analysis
+    - [x] Test: Uniqueness validation
+- [x] Add manual ID column specification
+  - [x] Test: Custom ID column configuration
+- [x] Implement ID column validation
+  - [x] Test: Invalid ID columns
+- [x] Add duplicate ID detection
+  - [x] Test: Duplicate ID handling
 
 ## 5. Comparison Engine
 - [ ] Implement row-level comparison
