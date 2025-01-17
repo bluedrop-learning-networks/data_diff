@@ -26,22 +26,22 @@ uv pip install -e ".[dev]"
 
 Basic comparison:
 ```bash
-python src/datacompare.py file1.csv file2.jsonl
+uv python -m datacompare file1.csv file2.jsonl
 ```
 
 With mapping configuration:
 ```bash
-python src/datacompare.py --mapping mapping.json file1.csv file2.csv
+uv python -m datacompare --mapping mapping.json file1.csv file2.csv
 ```
 
 For more options:
 ```bash
-python src/datacompare.py --help
+uv python -m datacompare --help
 ```
 
 ## Development
 
 Run tests:
 ```bash
-pytest tests/
+uv pip run pytest
 ```
