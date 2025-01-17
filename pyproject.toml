@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "A command-line tool for comparing two data sources (CSV/JSONL) and identifying differences"
 requires-python = ">=3.8"
 dependencies = [
-    "pandas>=2.0.0",
+    "pandas>=2.2.0",  # This will pull in a compatible numpy version automatically
 ]
 
 [project.optional-dependencies]
