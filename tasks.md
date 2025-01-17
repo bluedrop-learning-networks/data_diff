@@ -23,17 +23,17 @@
   - [x] Test: Common interface for different file types
 
 ## 3. Column Mapping
-- [ ] Implement automatic column mapping
-  - [ ] Header name similarity matching
-    - [ ] Test: Basic column name matching (test_scenarios.md #1)
-  - [ ] Data content similarity analysis
-    - [ ] Test: Content-based mapping accuracy
-- [ ] Create configuration file parser (JSON/YAML)
-  - [ ] Test: Config file parsing and validation
-- [ ] Implement manual column mapping via config
-  - [ ] Test: Custom mapping configurations
-- [ ] Add validation for mapping configuration
-  - [ ] Test: Invalid mapping scenarios
+- [x] Implement automatic column mapping
+  - [x] Header name similarity matching
+    - [x] Test: Basic column name matching (test_scenarios.md #1)
+  - [x] Data content similarity analysis
+    - [x] Test: Content-based mapping accuracy
+- [x] Create configuration file parser (JSON/YAML)
+  - [x] Test: Config file parsing and validation
+- [x] Implement manual column mapping via config
+  - [x] Test: Custom mapping configurations
+- [x] Add validation for mapping configuration
+  - [x] Test: Invalid mapping scenarios
 
 ## 4. Unique Identifier Handling
 - [ ] Implement automatic ID column detection
