@@ -2,7 +2,7 @@
 name = "datacompare"
 version = "0.1.0"
 description = "A command-line tool for comparing two data sources (CSV/JSONL) and identifying differences"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dependencies = [
     "pandas>=2.2.0",  # This will pull in a compatible numpy version automatically
 ]
@@ -19,6 +19,7 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+pythonpath = ["src"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
