@@ -1,5 +1,5 @@
 import pytest
-from src.datacompare import parse_args
+from datacompare import parse_args
 
 def test_basic_cli_args():
     # Test with minimum required arguments
