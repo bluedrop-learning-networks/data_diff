@@ -1,12 +1,12 @@
 # Implementation Tasks
 
 ## 1. Project Setup
-- [ ] Create project structure and virtual environment
-- [ ] Set up basic CLI framework using argparse
-  - [ ] Test: Basic CLI argument parsing
-- [ ] Create requirements.txt with initial dependencies (pandas, json, csv, difflib)
-- [ ] Set up testing framework (pytest)
-- [ ] Create initial README.md
+- [x] Create project structure and virtual environment
+- [x] Set up basic CLI framework using argparse
+  - [x] Test: Basic CLI argument parsing
+- [x] Create requirements.txt with initial dependencies (pandas, json, csv, difflib)
+- [x] Set up testing framework (pytest)
+- [x] Create initial README.md
 
 ## 2. Data Source Ingestion
 - [ ] Implement file format detection (CSV/JSONL)
