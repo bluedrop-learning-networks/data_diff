@@ -1,6 +1,6 @@
 import argparse
 
-def parse_args():
+def parse_args(args=None):
     parser = argparse.ArgumentParser(
         description='Compare two data sources and identify differences'
     )
