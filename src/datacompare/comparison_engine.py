@@ -1,6 +1,7 @@
 from typing import List, Dict, Set, Optional, Tuple
 from dataclasses import dataclass
 import difflib
+import pandas as pd
 
 @dataclass
 class ComparisonConfig:
@@ -73,12 +74,14 @@ class ComparisonEngine:
             column_stats=column_stats
         )
         
-    def _create_index(self, data: List[Dict]) -> Dict[Tuple, Dict]:
+    def _create_index(self, data: pd.DataFrame) -> Dict[Tuple, Dict]:
         """Create an index of rows based on ID columns"""
         index = {}
-        for row in data:
-            key = tuple(str(row.get(col)) for col in self.id_columns)
-            index[key] = row
+        for _, row in data.iterrows():
+            # Use pandas series indexing instead of .get()
+            key = tuple(str(row[col]) for col in self.id_columns)
+            # Convert the row to a dictionary
+            index[key] = row.to_dict()
         return index
         
     def _compare_rows(self, row1: Dict, row2: Dict) -> Optional[Dict[str, Dict]]:
