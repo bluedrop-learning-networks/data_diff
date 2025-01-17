@@ -19,3 +19,6 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
