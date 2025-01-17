@@ -12,7 +12,7 @@ def parse_args(args=None):
     parser.add_argument('--output-format', choices=['console', 'json', 'csv'], default='console',
                        help='Output format (default: console)')
     parser.add_argument('--output-file', help='Path to output file')
-    return parser.parse_args()
+    return parser.parse_args(args)
 
 def main():
     args = parse_args()
