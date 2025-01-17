@@ -9,18 +9,18 @@
 - [x] Create initial README.md
 
 ## 2. Data Source Ingestion
-- [ ] Implement file format detection (CSV/JSONL)
-  - [ ] Test: Format detection for CSV and JSONL files
-- [ ] Create CSV reader with configurable delimiter
-  - [ ] Test: Reading CSV with different delimiters (test_scenarios.md #7)
-- [ ] Create JSONL reader
-  - [ ] Test: Reading JSONL files (test_scenarios.md #2)
-- [ ] Implement chunked reading for large files
-  - [ ] Test: Processing large files (test_scenarios.md #3)
-- [ ] Add error handling for file access and parsing
-  - [ ] Test: Invalid file formats and access errors
-- [ ] Create data source abstraction layer
-  - [ ] Test: Common interface for different file types
+- [x] Implement file format detection (CSV/JSONL)
+  - [x] Test: Format detection for CSV and JSONL files
+- [x] Create CSV reader with configurable delimiter
+  - [x] Test: Reading CSV with different delimiters (test_scenarios.md #7)
+- [x] Create JSONL reader
+  - [x] Test: Reading JSONL files (test_scenarios.md #2)
+- [x] Implement chunked reading for large files
+  - [x] Test: Processing large files (test_scenarios.md #3)
+- [x] Add error handling for file access and parsing
+  - [x] Test: Invalid file formats and access errors
+- [x] Create data source abstraction layer
+  - [x] Test: Common interface for different file types
 
 ## 3. Column Mapping
 - [ ] Implement automatic column mapping
