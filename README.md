@@ -7,15 +7,19 @@ A command-line tool for comparing two data sources (CSV/JSONL) and identifying d
 1. Clone the repository
 2. Create and activate virtual environment:
 ```bash
-python -m venv venv
-source venv/bin/activate  # Unix/Mac
+uv venv
+source .venv/bin/activate  # Unix/Mac
 # OR
-.\venv\Scripts\activate  # Windows
+.\.venv\Scripts\activate  # Windows
 ```
 
 3. Install dependencies:
 ```bash
-pip install -r requirements.txt
+# Install main dependencies
+uv pip install -e .
+
+# Install development dependencies
+uv pip install -e ".[dev]"
 ```
 
 ## Usage

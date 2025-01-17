@@ -1,10 +1,10 @@
 # Implementation Tasks
 
 ## 1. Project Setup
-- [x] Create project structure and virtual environment
+- [x] Create project structure and virtual environment using uv
 - [x] Set up basic CLI framework using argparse
   - [x] Test: Basic CLI argument parsing
-- [x] Create requirements.txt with initial dependencies (pandas, json, csv, difflib)
+- [x] Create pyproject.toml with dependencies
 - [x] Set up testing framework (pytest)
 - [x] Create initial README.md
 
