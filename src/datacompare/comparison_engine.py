@@ -59,24 +59,25 @@ class ComparisonEngine:
             row2 = source2_index[id_]
             
             if diff := self._compare_rows(row1, row2):
-                differences.append({
+                diff_row = {
                     'id': dict(zip(self.id_columns, id_)),
-                    'differences': diff
-                })
-                
-        # Calculate column statistics
-        column_stats = self._calculate_column_stats(
-            source1_index, source2_index, common_ids)
-            
+                    **{k: v['source1_value'] for k, v in diff.items()},
+                    **{f"{k}_source2": v['source2_value'] for k, v in diff.items()}
+                }
+                differences.append(diff_row)
+    
         # Convert results to DataFrames
-        unique_rows1 = pd.DataFrame(unique_rows1) if unique_rows1 else pd.DataFrame()
-        unique_rows2 = pd.DataFrame(unique_rows2) if unique_rows2 else pd.DataFrame()
-        differences = pd.DataFrame(differences) if differences else pd.DataFrame()
+        unique_df1 = pd.DataFrame(unique_rows1) if unique_rows1 else pd.DataFrame(columns=self.source1_data.columns)
+        unique_df2 = pd.DataFrame(unique_rows2) if unique_rows2 else pd.DataFrame(columns=self.source2_data.columns)
+        diff_df = pd.DataFrame(differences) if differences else pd.DataFrame(columns=['id'] + list(self.column_mapping.keys()))
+    
+        # Calculate column statistics
+        column_stats = self._calculate_column_stats(source1_index, source2_index, common_ids)
             
         return ComparisonResult(
-            unique_to_source1=unique_rows1,
-            unique_to_source2=unique_rows2,
-            differences=differences,
+            unique_to_source1=unique_df1,
+            unique_to_source2=unique_df2,
+            differences=diff_df,
             column_stats=column_stats
         )
         
@@ -90,7 +91,7 @@ class ComparisonEngine:
             index[key] = row.to_dict()
         return index
         
-    def _compare_rows(self, row1: Dict, row2: Dict) -> Optional[Dict[str, Dict]]:
+    def _compare_rows(self, row1: Dict, row2: Dict) -> Optional[Dict]:
         """Compare two rows and return differences"""
         differences = {}
         
@@ -121,9 +122,10 @@ class ComparisonEngine:
                     value2 = value2.lower()
             
             if value1 != value2:
+                # Format differences to match expected structure
                 differences[source1_col] = {
-                    'source1': row1.get(source1_col),
-                    'source2': row2.get(source2_col)
+                    'source1_value': value1,
+                    'source2_value': value2
                 }
                 
         return differences if differences else None
@@ -144,18 +146,27 @@ class ComparisonEngine:
             row2 = source2_index[id_]
             
             for source1_col, source2_col in self.column_mapping.items():
-                value1 = str(row1.get(source1_col, ''))
-                value2 = str(row2.get(source2_col, ''))
+                value1 = row1.get(source1_col)
+                value2 = row2.get(source2_col)
                 
-                if self.config.trim_strings:
-                    value1 = value1.strip()
-                    value2 = value2.strip()
-                    
-                if not self.config.case_sensitive:
-                    value1 = value1.lower()
-                    value2 = value2.lower()
-                    
-                if value1 == value2:
+                # Consider None and np.nan as equal
+                if pd.isna(value1) and pd.isna(value2):
                     matches[source1_col] += 1
+                    continue
+                    
+                if not pd.isna(value1) and not pd.isna(value2):
+                    value1 = str(value1)
+                    value2 = str(value2)
+                    
+                    if self.config.trim_strings:
+                        value1 = value1.strip()
+                        value2 = value2.strip()
+                        
+                    if not self.config.case_sensitive:
+                        value1 = value1.lower()
+                        value2 = value2.lower()
+                        
+                    if value1 == value2:
+                        matches[source1_col] += 1
                     
         return {col: matches[col] / total for col in matches}
