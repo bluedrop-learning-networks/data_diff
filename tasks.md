@@ -74,11 +74,11 @@
     - [x] Test: Summary statistics accuracy
   - [x] Column similarity statistics
     - [x] Test: Statistical calculations
-- [ ] Implement detailed diff generation
-  - [ ] Colorized console output
-    - [ ] Test: Console formatting
-  - [ ] Side-by-side comparison
-    - [ ] Test: Comparison display format
+- [x] Implement detailed diff generation
+  - [x] Colorized console output
+    - [x] Test: Console formatting
+  - [x] Side-by-side comparison
+    - [x] Test: Comparison display format
 - [ ] Add output format handlers
   - [ ] Console output formatter
     - [ ] Test: Console output formatting

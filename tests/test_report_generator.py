@@ -26,11 +26,25 @@ def test_generate_summary(sample_result):
 
 def test_console_output(sample_result):
     generator = ReportGenerator(sample_result)
-    output = generator.to_console()
     
+    # Test basic summary
+    output = generator.to_console(show_diff=False)
     assert 'Comparison Summary' in output
     assert 'Unique to source 1: 2' in output
     assert 'Match: 75.0%' in output
+    
+    # Test detailed diff
+    output = generator.to_console(show_diff=True)
+    assert 'Detailed Differences' in output
+    assert 'Source 1' in output
+    assert 'Source 2' in output
+    assert 'ID: id=4' in output
+
+def test_text_wrapping():
+    long_text = "This is a very long text that should be wrapped across multiple lines"
+    wrapped = ReportGenerator._wrap_text(long_text, 20)
+    assert len(wrapped) > 1
+    assert all(len(line) <= 20 for line in wrapped)
 
 def test_json_output(sample_result, tmp_path):
     generator = ReportGenerator(sample_result)
