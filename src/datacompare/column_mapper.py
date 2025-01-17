@@ -40,9 +40,14 @@ class ColumnMapper:
                 if col2 in used_s2:
                     continue
                     
-                score = SequenceMatcher(None, 
-                                      col1.lower(), 
-                                      col2.lower()).ratio()
+                # Check if one string contains the other
+                if col1.lower() in col2.lower() or col2.lower() in col1.lower():
+                    score = 0.8  # Give high score for substring matches
+                else:
+                    score = SequenceMatcher(None, 
+                                        col1.lower(), 
+                                        col2.lower()).ratio()
+                    
                 if score > best_score and score > 0.6:  # Threshold for similarity
                     best_score = score
                     best_match = col2
