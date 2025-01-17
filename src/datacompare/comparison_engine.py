@@ -66,9 +66,12 @@ class ComparisonEngine:
                     diff_row['source2_value'] = values['source2_value']
                 differences.append(diff_row)
     
-        # Convert results to DataFrames with correct columns
-        unique_df1 = pd.DataFrame(unique_rows1) if unique_rows1 else pd.DataFrame(columns=self.source1_data.columns)
-        unique_df2 = pd.DataFrame(unique_rows2) if unique_rows2 else pd.DataFrame(columns=self.source2_data.columns)
+        # Convert results to DataFrames
+        columns1 = self.source1_data.columns if hasattr(self.source1_data, 'columns') else list(self.source1_data[0].keys())
+        columns2 = self.source2_data.columns if hasattr(self.source2_data, 'columns') else list(self.source2_data[0].keys())
+        
+        unique_df1 = pd.DataFrame(unique_rows1, columns=columns1) if unique_rows1 else pd.DataFrame(columns=columns1)
+        unique_df2 = pd.DataFrame(unique_rows2, columns=columns2) if unique_rows2 else pd.DataFrame(columns=columns2)
         diff_df = pd.DataFrame(differences) if differences else pd.DataFrame(columns=['id', 'source1_value', 'source2_value'])
     
         # Calculate column statistics
