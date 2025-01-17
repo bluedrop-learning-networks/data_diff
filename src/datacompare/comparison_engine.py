@@ -87,11 +87,15 @@ class ComparisonEngine:
     def _create_index(self, data: pd.DataFrame) -> Dict[Tuple, Dict]:
         """Create an index of rows based on ID columns"""
         index = {}
+        # Reset the index to make sure we process all rows
+        data = data.reset_index(drop=True)
+        
         for _, row in data.iterrows():
             # Convert ID columns to strings and create tuple key
             key = tuple(str(row[col]) for col in self.id_columns)
-            # Convert row to dict, ensuring all values are stored
-            index[key] = {col: row[col] for col in data.columns}
+            # Convert row to dict, ensuring all values are stored as strings
+            index[key] = {col: str(val) if pd.notna(val) else val 
+                         for col, val in row.items()}
         return index
         
     def _compare_rows(self, row1: Dict, row2: Dict) -> Optional[Dict]:
