@@ -33,7 +33,14 @@ def large_data():
     # Create source2 with some differences
     source2 = source1.copy()
     source2.loc[::2, 'value'] += 1  # Modify every other row
-    source2 = source2.sample(frac=0.9)  # Remove 10% of rows
+    
+    # Add some new rows unique to source2
+    new_rows = pd.DataFrame({
+        'id': range(size, size + 100),  # Add 100 new IDs
+        'name': [f'Name{i}' for i in range(size, size + 100)],
+        'value': np.random.randint(1, 1000, 100)
+    })
+    source2 = pd.concat([source2.sample(frac=0.9), new_rows])  # Remove 10% of original rows and add new ones
     
     return source1, source2
 
