@@ -69,11 +69,11 @@
   - [x] Test: Column filtering
 
 ## 6. Output Generation
-- [ ] Create summary report generator
-  - [ ] Row count differences
-    - [ ] Test: Summary statistics accuracy
-  - [ ] Column similarity statistics
-    - [ ] Test: Statistical calculations
+- [x] Create summary report generator
+  - [x] Row count differences
+    - [x] Test: Summary statistics accuracy
+  - [x] Column similarity statistics
+    - [x] Test: Statistical calculations
 - [ ] Implement detailed diff generation
   - [ ] Colorized console output
     - [ ] Test: Console formatting
