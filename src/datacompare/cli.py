@@ -2,6 +2,7 @@ import sys
 from typing import List, Optional
 import argparse
 from pathlib import Path
+import pandas as pd
 
 from .datasource import create_data_source
 from .column_mapper import ColumnMapper
@@ -74,10 +75,14 @@ def main():
             columns_to_compare=args.compare_columns.split(',') if args.compare_columns else None
         )
 
+        # Convert list data to DataFrames
+        df1 = pd.DataFrame(sample1)
+        df2 = pd.DataFrame(sample2)
+
         # Run comparison
         engine = ComparisonEngine(
-            source1_data=sample1,
-            source2_data=sample2,
+            source1_data=df1,
+            source2_data=df2,
             id_columns=id_columns,
             column_mapping=column_mapping,
             config=config
