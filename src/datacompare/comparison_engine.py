@@ -2,6 +2,7 @@ from typing import List, Dict, Set, Optional, Tuple
 from dataclasses import dataclass
 import difflib
 import pandas as pd
+import numpy as np
 
 @dataclass
 class ComparisonConfig:
@@ -13,9 +14,9 @@ class ComparisonConfig:
 @dataclass
 class ComparisonResult:
     """Results of a data comparison"""
-    unique_to_source1: List[Dict]
-    unique_to_source2: List[Dict]
-    differences: List[Dict]
+    unique_to_source1: pd.DataFrame
+    unique_to_source2: pd.DataFrame
+    differences: pd.DataFrame
     column_stats: Dict[str, float]
 
 class ComparisonEngine:
@@ -67,6 +68,11 @@ class ComparisonEngine:
         column_stats = self._calculate_column_stats(
             source1_index, source2_index, common_ids)
             
+        # Convert results to DataFrames
+        unique_rows1 = pd.DataFrame(unique_rows1) if unique_rows1 else pd.DataFrame()
+        unique_rows2 = pd.DataFrame(unique_rows2) if unique_rows2 else pd.DataFrame()
+        differences = pd.DataFrame(differences) if differences else pd.DataFrame()
+            
         return ComparisonResult(
             unique_to_source1=unique_rows1,
             unique_to_source2=unique_rows2,
@@ -88,24 +94,32 @@ class ComparisonEngine:
         """Compare two rows and return differences"""
         differences = {}
         
-        # Determine which columns to compare
         columns_to_compare = (self.config.columns_to_compare if self.config.columns_to_compare 
                             else self.column_mapping.keys())
         
         for source1_col in columns_to_compare:
             source2_col = self.column_mapping[source1_col]
             
-            value1 = str(row1.get(source1_col, ''))
-            value2 = str(row2.get(source2_col, ''))
+            value1 = row1.get(source1_col)
+            value2 = row2.get(source2_col)
             
-            if self.config.trim_strings:
-                value1 = value1.strip()
-                value2 = value2.strip()
+            # Handle None/NaN equality
+            if pd.isna(value1) and pd.isna(value2):
+                continue
                 
-            if not self.config.case_sensitive:
-                value1 = value1.lower()
-                value2 = value2.lower()
+            # Convert to string only if both values are not None/NaN
+            if not pd.isna(value1) and not pd.isna(value2):
+                value1 = str(value1)
+                value2 = str(value2)
                 
+                if self.config.trim_strings:
+                    value1 = value1.strip()
+                    value2 = value2.strip()
+                    
+                if not self.config.case_sensitive:
+                    value1 = value1.lower()
+                    value2 = value2.lower()
+            
             if value1 != value2:
                 differences[source1_col] = {
                     'source1': row1.get(source1_col),
