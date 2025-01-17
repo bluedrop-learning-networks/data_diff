@@ -49,24 +49,24 @@
   - [x] Test: Duplicate ID handling
 
 ## 5. Comparison Engine
-- [ ] Implement row-level comparison
-  - [ ] Find rows unique to source 1
-    - [ ] Test: Unique row detection (test_scenarios.md #1, #2)
-  - [ ] Find rows unique to source 2
-    - [ ] Test: Unique row detection (test_scenarios.md #1, #2)
-  - [ ] Detect rows with matching IDs but different values
-    - [ ] Test: Value difference detection (test_scenarios.md #2)
-- [ ] Implement column-level comparison
-  - [ ] Calculate matching value percentages
-    - [ ] Test: Similarity calculations
-  - [ ] Identify columns with highest/lowest similarity
-    - [ ] Test: Column similarity ranking
-- [ ] Add support for case-insensitive comparison
-  - [ ] Test: Case sensitivity handling (test_scenarios.md #6)
-- [ ] Add support for string trimming
-  - [ ] Test: String trimming functionality
-- [ ] Implement column selection/exclusion
-  - [ ] Test: Column filtering
+- [x] Implement row-level comparison
+  - [x] Find rows unique to source 1
+    - [x] Test: Unique row detection (test_scenarios.md #1, #2)
+  - [x] Find rows unique to source 2
+    - [x] Test: Unique row detection (test_scenarios.md #1, #2)
+  - [x] Detect rows with matching IDs but different values
+    - [x] Test: Value difference detection (test_scenarios.md #2)
+- [x] Implement column-level comparison
+  - [x] Calculate matching value percentages
+    - [x] Test: Similarity calculations
+  - [x] Identify columns with highest/lowest similarity
+    - [x] Test: Column similarity ranking
+- [x] Add support for case-insensitive comparison
+  - [x] Test: Case sensitivity handling (test_scenarios.md #6)
+- [x] Add support for string trimming
+  - [x] Test: String trimming functionality
+- [x] Implement column selection/exclusion
+  - [x] Test: Column filtering
 
 ## 6. Output Generation
 - [ ] Create summary report generator
