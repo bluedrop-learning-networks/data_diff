@@ -59,17 +59,17 @@ class ComparisonEngine:
             row2 = source2_index[id_]
             
             if diff := self._compare_rows(row1, row2):
-                diff_row = {
-                    'id': dict(zip(self.id_columns, id_)),
-                    **{k: v['source1_value'] for k, v in diff.items()},
-                    **{f"{k}_source2": v['source2_value'] for k, v in diff.items()}
-                }
+                # Create a flat diff row structure with source1_value and source2_value
+                diff_row = {'id': dict(zip(self.id_columns, id_))}
+                for col, values in diff.items():
+                    diff_row['source1_value'] = values['source1_value']
+                    diff_row['source2_value'] = values['source2_value']
                 differences.append(diff_row)
     
-        # Convert results to DataFrames
+        # Convert results to DataFrames with correct columns
         unique_df1 = pd.DataFrame(unique_rows1) if unique_rows1 else pd.DataFrame(columns=self.source1_data.columns)
         unique_df2 = pd.DataFrame(unique_rows2) if unique_rows2 else pd.DataFrame(columns=self.source2_data.columns)
-        diff_df = pd.DataFrame(differences) if differences else pd.DataFrame(columns=['id'] + list(self.column_mapping.keys()))
+        diff_df = pd.DataFrame(differences) if differences else pd.DataFrame(columns=['id', 'source1_value', 'source2_value'])
     
         # Calculate column statistics
         column_stats = self._calculate_column_stats(source1_index, source2_index, common_ids)
@@ -85,10 +85,10 @@ class ComparisonEngine:
         """Create an index of rows based on ID columns"""
         index = {}
         for _, row in data.iterrows():
-            # Use pandas series indexing instead of .get()
+            # Convert ID columns to strings and create tuple key
             key = tuple(str(row[col]) for col in self.id_columns)
-            # Convert the row to a dictionary
-            index[key] = row.to_dict()
+            # Convert row to dict, ensuring all values are stored
+            index[key] = {col: row[col] for col in data.columns}
         return index
         
     def _compare_rows(self, row1: Dict, row2: Dict) -> Optional[Dict]:
