@@ -32,14 +32,33 @@ class ReportGenerator:
         }
         
     def to_console(self, show_diff: bool = True) -> str:
-        """Generate a formatted console report with optional colorized diff
+        """Generate formatted console report with optional colorized diff
         
         Args:
             show_diff: Whether to include detailed diffs after the summary
+            
+        Returns:
+            Formatted string with ANSI color codes
         """
-        summary = self.generate_summary()
-        
         output = []
+        
+        # Add summary section
+        output.extend(self._generate_summary_section())
+        
+        # Add detailed diff section if requested
+        if show_diff and (not self.result.differences.empty or 
+                         not self.result.unique_to_source1.empty or 
+                         not self.result.unique_to_source2.empty):
+            output.extend(['', f"{Style.BRIGHT}=== Detailed Differences ==={Style.RESET_ALL}"])
+            output.append(self._generate_detailed_diff())
+        
+        return '\n'.join(output)
+
+    def _generate_summary_section(self) -> List[str]:
+        """Generate the summary section of the report"""
+        summary = self.generate_summary()
+        output = []
+        
         output.append(f"{Style.BRIGHT}=== Comparison Summary ==={Style.RESET_ALL}\n")
         
         # Row counts
@@ -57,12 +76,8 @@ class ReportGenerator:
             output.append(f"  {col}:")
             output.append(f"    Match: {color}{stats['match_percentage']}{Style.RESET_ALL}")
             output.append(f"    Diff:  {color}{stats['difference_percentage']}{Style.RESET_ALL}")
-            
-        if show_diff and not self.result.differences.empty:
-            output.extend(['', f"{Style.BRIGHT}=== Detailed Differences ==={Style.RESET_ALL}"])
-            output.append(self._generate_detailed_diff())
-            
-        return '\n'.join(output)
+        
+        return output
         
     def _generate_detailed_diff(self) -> str:
         """Generate a detailed diff report showing added, removed, and changed rows"""
@@ -139,27 +154,71 @@ class ReportGenerator:
         return lines
         
     def to_json(self, output_file: Optional[str] = None) -> Optional[str]:
-        """Generate JSON report"""
-        summary = self.generate_summary()
+        """Generate JSON report with detailed results
+        
+        Args:
+            output_file: Optional path to output JSON file
+            
+        Returns:
+            JSON string if no output_file specified
+        """
+        # Create detailed report structure
+        report = {
+            'summary': self.generate_summary(),
+            'details': {
+                'unique_to_source1': self.result.unique_to_source1.to_dict('records'),
+                'unique_to_source2': self.result.unique_to_source2.to_dict('records'),
+                'differences': []
+            }
+        }
+        
+        # Add detailed differences
+        for _, row in self.result.differences.iterrows():
+            diff_entry = {
+                'id': row['id'],
+                'source1_value': row['source1_value'],
+                'source2_value': row['source2_value'],
+                'changes': {}
+            }
+            
+            # Calculate specific changes
+            source1 = row['source1_value']
+            source2 = row['source2_value']
+            for col in source1:
+                if col in source2 and source1[col] != source2[col]:
+                    diff_entry['changes'][col] = {
+                        'source1': source1[col],
+                        'source2': source2[col]
+                    }
+                    
+            report['details']['differences'].append(diff_entry)
         
         if output_file:
             with open(output_file, 'w') as f:
-                json.dump(summary, f, indent=2)
+                json.dump(report, f, indent=2)
         else:
-            return json.dumps(summary, indent=2)
+            return json.dumps(report, indent=2)
             
     def to_csv(self, output_file: str) -> None:
-        """Generate CSV report"""
+        """Generate CSV report with detailed results
+        
+        Args:
+            output_file: Path to output CSV file
+        """
         summary = self.generate_summary()
         
         with open(output_file, 'w', newline='') as f:
             writer = csv.writer(f)
             
+            # Write summary section
+            writer.writerow(['=== Comparison Summary ==='])
+            writer.writerow([])
+            
             # Write row counts
             writer.writerow(['Row Counts'])
             for key, value in summary['row_counts'].items():
                 writer.writerow([key, value])
-            writer.writerow([])  # Empty row for spacing
+            writer.writerow([])
             
             # Write column statistics
             writer.writerow(['Column Statistics'])
@@ -170,3 +229,26 @@ class ReportGenerator:
                     stats['match_percentage'],
                     stats['difference_percentage']
                 ])
+            writer.writerow([])
+            
+            # Write differences if any exist
+            if not self.result.differences.empty:
+                writer.writerow(['=== Detailed Differences ==='])
+                writer.writerow([])
+                
+                # Write modified rows
+                writer.writerow(['Modified Rows'])
+                writer.writerow(['ID', 'Column', 'Source 1 Value', 'Source 2 Value'])
+                for _, row in self.result.differences.iterrows():
+                    id_str = ','.join(f"{k}={v}" for k, v in row['id'].items())
+                    source1 = row['source1_value']
+                    source2 = row['source2_value']
+                    
+                    for col in source1:
+                        if col in source2 and source1[col] != source2[col]:
+                            writer.writerow([
+                                id_str,
+                                col,
+                                source1[col],
+                                source2[col]
+                            ])
