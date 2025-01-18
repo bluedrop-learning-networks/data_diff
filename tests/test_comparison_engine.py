@@ -64,8 +64,8 @@ def test_basic_comparison(basic_data):
     assert len(result.differences) == 1  # Bob's value changed
     diff_row = result.differences.iloc[0]
     assert diff_row['id']['id'] == '2'
-    assert diff_row['source1_value'] == '200'
-    assert diff_row['source2_value'] == '250'
+    assert diff_row['source1_value']['value'] == '200'
+    assert diff_row['source2_value']['value'] == '250'
     
     # Check column stats
     assert result.column_stats['name'] == 1.0  # All names match
