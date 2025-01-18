@@ -1,6 +1,7 @@
 import pytest
 import json
 import pandas as pd
+from colorama import Fore, Style
 from datacompare.comparison_engine import ComparisonResult
 from datacompare.report_generator import ReportGenerator
 
@@ -39,6 +40,107 @@ def test_console_output(sample_result):
     assert 'Source 1' in output
     assert 'Source 2' in output
     assert 'ID: id=4' in output
+
+def test_detailed_diff_formatting(sample_result):
+    """Test the formatting of detailed differences"""
+    # Create a result with specific test data
+    result = ComparisonResult(
+        unique_to_source1=pd.DataFrame([
+            {'id': '1', 'name': 'Alice', 'value': '100'}
+        ]),
+        unique_to_source2=pd.DataFrame([
+            {'id': '3', 'name': 'Charlie', 'value': '300'}
+        ]),
+        differences=pd.DataFrame([{
+            'id': {'id': '2'},
+            'source1_value': {'id': '2', 'name': 'Bob', 'value': '200'},
+            'source2_value': {'id': '2', 'name': 'Bob', 'value': '250'}
+        }]),
+        column_stats={'name': 0.75, 'value': 0.90}
+    )
+    
+    generator = ReportGenerator(result)
+    output = generator.to_console(show_diff=True)
+    
+    # Check section headers
+    assert "Rows Removed (Unique to Source 1):" in output
+    assert "Rows Added (Unique to Source 2):" in output
+    assert "Modified Rows:" in output
+    
+    # Check removed row formatting
+    assert "- {'id': '1'" in output
+    
+    # Check added row formatting
+    assert "+ {'id': '3'" in output
+    
+    # Check modified row formatting
+    assert "ID: id=2" in output
+    assert "value=200" in output  # Source 1 value
+    assert "value=250" in output  # Source 2 value
+
+def test_color_highlighting(sample_result):
+    """Test that color codes are properly applied"""
+    result = ComparisonResult(
+        unique_to_source1=pd.DataFrame([
+            {'id': '1', 'name': 'Alice', 'value': '100'}
+        ]),
+        unique_to_source2=pd.DataFrame([]),
+        differences=pd.DataFrame([{
+            'id': {'id': '2'},
+            'source1_value': {'id': '2', 'name': 'Bob', 'value': '200'},
+            'source2_value': {'id': '2', 'name': 'Bob', 'value': '250'}
+        }]),
+        column_stats={'name': 1.0, 'value': 0.0}
+    )
+    
+    generator = ReportGenerator(result)
+    output = generator.to_console(show_diff=True)
+    
+    # Check for color codes
+    assert Fore.RED in output  # Should be used for removed rows and source1 differences
+    assert Fore.GREEN in output  # Should be used for added rows and source2 differences
+    assert Style.BRIGHT in output  # Should be used for headers
+    assert Style.RESET_ALL in output  # Should be used to reset formatting
+
+def test_empty_differences():
+    """Test output when there are no differences"""
+    result = ComparisonResult(
+        unique_to_source1=pd.DataFrame(columns=['id', 'name']),
+        unique_to_source2=pd.DataFrame(columns=['id', 'name']),
+        differences=pd.DataFrame(columns=['id', 'source1_value', 'source2_value']),
+        column_stats={'name': 1.0}
+    )
+    
+    generator = ReportGenerator(result)
+    output = generator.to_console(show_diff=True)
+    
+    # Should still show headers but no diff content
+    assert "=== Comparison Summary ===" in output
+    assert "Rows with differences: 0" in output
+    assert "Detailed Differences" not in output  # Should not show diff section if empty
+
+def test_multicolumn_differences():
+    """Test handling of rows with multiple column differences"""
+    result = ComparisonResult(
+        unique_to_source1=pd.DataFrame(),
+        unique_to_source2=pd.DataFrame(),
+        differences=pd.DataFrame([{
+            'id': {'id': '1'},
+            'source1_value': {'id': '1', 'name': 'Alice', 'age': '30', 'city': 'NY'},
+            'source2_value': {'id': '1', 'name': 'Alice', 'age': '31', 'city': 'LA'}
+        }]),
+        column_stats={'name': 1.0, 'age': 0.0, 'city': 0.0}
+    )
+    
+    generator = ReportGenerator(result)
+    output = generator.to_console(show_diff=True)
+    
+    # Check that both different columns are highlighted
+    assert 'age=30' in output
+    assert 'age=31' in output
+    assert 'city=NY' in output
+    assert 'city=LA' in output
+    assert 'name=Alice' in output  # Should appear without highlighting
 
 def test_text_wrapping():
     long_text = "This is a very long text that should be wrapped across multiple lines"
