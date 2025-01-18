@@ -128,12 +128,11 @@ class ComparisonEngine:
                 if not self.config.case_sensitive:
                     value1 = value1.lower()
                     value2 = value2.lower()
-            
+        
             if value1 != value2:
                 has_differences = True
                 
         if has_differences:
-            # Store the full rows for detailed diff
             differences = {
                 'source1_value': row1,
                 'source2_value': row2
