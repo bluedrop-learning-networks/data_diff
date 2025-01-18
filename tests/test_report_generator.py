@@ -16,7 +16,11 @@ def sample_result():
     return ComparisonResult(
         unique_to_source1=pd.DataFrame([{'id': 1}, {'id': 2}]),
         unique_to_source2=pd.DataFrame([{'id': 3}]),
-        differences=pd.DataFrame([{'id': 4, 'source1_value': 'A', 'source2_value': 'B'}]),
+        differences=pd.DataFrame([{
+            'id': {'id': 4},  # Dictionary structure for id
+            'source1_value': {'id': 4, 'value': 'A'},
+            'source2_value': {'id': 4, 'value': 'B'}
+        }]),
         column_stats={'name': 0.75, 'value': 0.90}
     )
 
