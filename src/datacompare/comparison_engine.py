@@ -57,13 +57,11 @@ class ComparisonEngine:
         for id_ in common_ids:
             row1 = source1_index[id_]
             row2 = source2_index[id_]
-            
+        
             if diff := self._compare_rows(row1, row2):
-                # Create a flat diff row structure with source1_value and source2_value
+                # The diff already contains source1_value and source2_value
                 diff_row = {'id': dict(zip(self.id_columns, id_))}
-                for col, values in diff.items():
-                    diff_row['source1_value'] = values['source1_value']
-                    diff_row['source2_value'] = values['source2_value']
+                diff_row.update(diff)  # Add the source1_value and source2_value directly
                 differences.append(diff_row)
     
         # Convert results to DataFrames
