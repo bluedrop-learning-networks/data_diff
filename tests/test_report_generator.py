@@ -151,22 +151,148 @@ def test_text_wrapping():
     assert len(wrapped) > 1
     assert all(len(line) <= 20 for line in wrapped)
 
-def test_json_output(sample_result, tmp_path):
-    generator = ReportGenerator(sample_result)
+def test_console_output_formatting():
+    """Test detailed console output formatting"""
+    result = ComparisonResult(
+        unique_to_source1=pd.DataFrame([{'id': '1', 'name': 'Alice'}]),
+        unique_to_source2=pd.DataFrame([{'id': '2', 'name': 'Bob'}]),
+        differences=pd.DataFrame([{
+            'id': {'id': '3'},
+            'source1_value': {'id': '3', 'name': 'Charlie', 'value': '100'},
+            'source2_value': {'id': '3', 'name': 'Charlie', 'value': '200'}
+        }]),
+        column_stats={'name': 1.0, 'value': 0.5}
+    )
+    
+    generator = ReportGenerator(result)
+    output = strip_ansi(generator.to_console(show_diff=True))
+    
+    # Check summary formatting
+    assert "=== Comparison Summary ===" in output
+    assert "Row Counts:" in output
+    assert "Unique to source 1: 1" in output
+    assert "Unique to source 2: 1" in output
+    assert "Rows with differences: 1" in output
+    
+    # Check statistics formatting
+    assert "Column Statistics:" in output
+    assert "Match: 100.0%" in output
+    assert "Match: 50.0%" in output
+    
+    # Check detailed diff formatting
+    assert "=== Detailed Differences ===" in output
+    assert "Rows Removed (Unique to Source 1):" in output
+    assert "Rows Added (Unique to Source 2):" in output
+    assert "Modified Rows:" in output
+    assert "id=3" in output
+    assert "value=100" in output
+    assert "value=200" in output
+
+def test_csv_output_structure(tmp_path):
+    """Test CSV output structure and content"""
+    result = ComparisonResult(
+        unique_to_source1=pd.DataFrame([{'id': '1', 'name': 'Alice'}]),
+        unique_to_source2=pd.DataFrame([{'id': '2', 'name': 'Bob'}]),
+        differences=pd.DataFrame([{
+            'id': {'id': '3'},
+            'source1_value': {'id': '3', 'name': 'Charlie', 'value': '100'},
+            'source2_value': {'id': '3', 'name': 'Charlie', 'value': '200'}
+        }]),
+        column_stats={'name': 1.0, 'value': 0.5}
+    )
+    
+    output_file = tmp_path / "report.csv"
+    generator = ReportGenerator(result)
+    generator.to_csv(str(output_file))
+    
+    # Read and check CSV content
+    with open(output_file) as f:
+        content = f.readlines()
+        
+    # Check headers and sections
+    assert "=== Comparison Summary ===" in content[0]
+    assert "Row Counts" in ''.join(content)
+    assert "Column Statistics" in ''.join(content)
+    
+    # Check data rows
+    csv_content = ''.join(content)
+    assert "unique_to_source1,1" in csv_content
+    assert "unique_to_source2,1" in csv_content
+    assert "name,100.0%" in csv_content
+    assert "value,50.0%" in csv_content
+    
+    # Check detailed differences
+    assert "Modified Rows" in csv_content
+    assert "id=3" in csv_content
+    assert "100" in csv_content
+    assert "200" in csv_content
+
+def test_json_output_structure(tmp_path):
+    """Test JSON output structure and content"""
+    result = ComparisonResult(
+        unique_to_source1=pd.DataFrame([{'id': '1', 'name': 'Alice'}]),
+        unique_to_source2=pd.DataFrame([{'id': '2', 'name': 'Bob'}]),
+        differences=pd.DataFrame([{
+            'id': {'id': '3'},
+            'source1_value': {'id': '3', 'name': 'Charlie', 'value': '100'},
+            'source2_value': {'id': '3', 'name': 'Charlie', 'value': '200'}
+        }]),
+        column_stats={'name': 1.0, 'value': 0.5}
+    )
     
     # Test string output
+    generator = ReportGenerator(result)
     json_str = generator.to_json()
     data = json.loads(json_str)
-    assert data['row_counts']['unique_to_source1'] == 2
+    
+    # Check structure
+    assert 'summary' in data
+    assert 'details' in data
+    assert 'row_counts' in data['summary']
+    assert 'column_statistics' in data['summary']
+    assert 'unique_to_source1' in data['details']
+    assert 'unique_to_source2' in data['details']
+    assert 'differences' in data['details']
+    
+    # Check content
+    assert data['summary']['row_counts']['unique_to_source1'] == 1
+    assert data['summary']['row_counts']['unique_to_source2'] == 1
+    assert data['summary']['column_statistics']['name']['match_percentage'] == '100.0%'
+    assert len(data['details']['differences']) == 1
+    assert data['details']['differences'][0]['changes']['value']['source1'] == '100'
+    assert data['details']['differences'][0]['changes']['value']['source2'] == '200'
     
     # Test file output
     output_file = tmp_path / "report.json"
     generator.to_json(str(output_file))
     assert output_file.exists()
     
-    with output_file.open() as f:
-        data = json.load(f)
-        assert data['row_counts']['unique_to_source1'] == 2
+    with open(output_file) as f:
+        file_data = json.load(f)
+        assert file_data == data  # Should match string output
+
+def test_empty_report_handling():
+    """Test handling of empty comparison results"""
+    result = ComparisonResult(
+        unique_to_source1=pd.DataFrame(columns=['id', 'name']),
+        unique_to_source2=pd.DataFrame(columns=['id', 'name']),
+        differences=pd.DataFrame(columns=['id', 'source1_value', 'source2_value']),
+        column_stats={}
+    )
+    
+    generator = ReportGenerator(result)
+    
+    # Test console output
+    console_output = strip_ansi(generator.to_console())
+    assert "Unique to source 1: 0" in console_output
+    assert "Unique to source 2: 0" in console_output
+    assert "Rows with differences: 0" in console_output
+    
+    # Test JSON output
+    json_data = json.loads(generator.to_json())
+    assert json_data['summary']['row_counts']['unique_to_source1'] == 0
+    assert json_data['summary']['row_counts']['unique_to_source2'] == 0
+    assert len(json_data['details']['differences']) == 0
 
 def test_csv_output(sample_result, tmp_path):
     generator = ReportGenerator(sample_result)
