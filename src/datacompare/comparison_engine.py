@@ -105,6 +105,7 @@ class ComparisonEngine:
         columns_to_compare = (self.config.columns_to_compare if self.config.columns_to_compare 
                             else self.column_mapping.keys())
         
+        has_differences = False
         for source1_col in columns_to_compare:
             source2_col = self.column_mapping[source1_col]
             
@@ -129,11 +130,14 @@ class ComparisonEngine:
                     value2 = value2.lower()
             
             if value1 != value2:
-                # Format differences to match expected structure
-                differences[source1_col] = {
-                    'source1_value': value1,
-                    'source2_value': value2
-                }
+                has_differences = True
+                
+        if has_differences:
+            # Store the full rows for detailed diff
+            differences = {
+                'source1_value': row1,
+                'source2_value': row2
+            }
                 
         return differences if differences else None
         

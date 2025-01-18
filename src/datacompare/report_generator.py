@@ -65,38 +65,59 @@ class ReportGenerator:
         return '\n'.join(output)
         
     def _generate_detailed_diff(self) -> str:
-        """Generate a detailed diff report with side-by-side comparison"""
+        """Generate a detailed diff report showing added, removed, and changed rows"""
         output = []
         term_width = shutil.get_terminal_size().columns
         col_width = min(40, (term_width - 10) // 2)  # Leave room for separators
-        
-        # Header
-        header = f"{'Source 1':<{col_width}} | {'Source 2':<{col_width}}"
-        separator = '-' * (col_width * 2 + 3)
-        output.extend(['', header, separator])
-        
-        # Process each difference
-        for _, row in self.result.differences.iterrows():
-            id_str = ' '.join(f"{k}={v}" for k, v in row['id'].items())
-            output.append(f"\n{Style.BRIGHT}ID: {id_str}{Style.RESET_ALL}")
+
+        # Show removed rows (unique to source 1)
+        if not self.result.unique_to_source1.empty:
+            output.extend(['', f"{Style.BRIGHT}Rows Removed (Unique to Source 1):{Style.RESET_ALL}"])
+            for _, row in self.result.unique_to_source1.iterrows():
+                output.append(f"{Fore.RED}- {dict(row)}{Style.RESET_ALL}")
+
+        # Show added rows (unique to source 2)
+        if not self.result.unique_to_source2.empty:
+            output.extend(['', f"{Style.BRIGHT}Rows Added (Unique to Source 2):{Style.RESET_ALL}"])
+            for _, row in self.result.unique_to_source2.iterrows():
+                output.append(f"{Fore.GREEN}+ {dict(row)}{Style.RESET_ALL}")
+
+        # Show modified rows
+        if not self.result.differences.empty:
+            output.extend(['', f"{Style.BRIGHT}Modified Rows:{Style.RESET_ALL}"])
             
-            source1_val = str(row['source1_value'])
-            source2_val = str(row['source2_value'])
-            
-            # Wrap long values
-            source1_lines = self._wrap_text(source1_val, col_width)
-            source2_lines = self._wrap_text(source2_val, col_width)
-            
-            # Ensure both sides have same number of lines
-            max_lines = max(len(source1_lines), len(source2_lines))
-            source1_lines.extend([''] * (max_lines - len(source1_lines)))
-            source2_lines.extend([''] * (max_lines - len(source2_lines)))
-            
-            # Output side by side with color
-            for s1, s2 in zip(source1_lines, source2_lines):
-                line = f"{Fore.RED}{s1:<{col_width}}{Style.RESET_ALL} | {Fore.GREEN}{s2:<{col_width}}{Style.RESET_ALL}"
-                output.append(line)
+            for _, row in self.result.differences.iterrows():
+                id_str = ' '.join(f"{k}={v}" for k, v in row['id'].items())
+                output.append(f"\n{Style.BRIGHT}ID: {id_str}{Style.RESET_ALL}")
                 
+                # Get the full rows from both sources
+                source1_row = dict(row['source1_value'])
+                source2_row = dict(row['source2_value'])
+                
+                # Find which columns have differences
+                diff_cols = set()
+                for col in source1_row:
+                    if col in source2_row and source1_row[col] != source2_row[col]:
+                        diff_cols.add(col)
+
+                # Format source1 row with red highlighting for changed values
+                source1_parts = []
+                for col, val in source1_row.items():
+                    if col in diff_cols:
+                        source1_parts.append(f"{col}={Fore.RED}{val}{Style.RESET_ALL}")
+                    else:
+                        source1_parts.append(f"{col}={val}")
+                output.append(f"- {', '.join(source1_parts)}")
+
+                # Format source2 row with green highlighting for changed values
+                source2_parts = []
+                for col, val in source2_row.items():
+                    if col in diff_cols:
+                        source2_parts.append(f"{col}={Fore.GREEN}{val}{Style.RESET_ALL}")
+                    else:
+                        source2_parts.append(f"{col}={val}")
+                output.append(f"+ {', '.join(source2_parts)}")
+
         return '\n'.join(output)
         
     @staticmethod
