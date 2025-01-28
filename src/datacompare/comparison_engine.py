@@ -37,8 +37,8 @@ class ComparisonEngine:
     def compare(self) -> ComparisonResult:
         """Perform full comparison of the two data sources"""
         # Create indexes for faster lookup
-        source1_index = self._create_index(self.source1_data)
-        source2_index = self._create_index(self.source2_data)
+        source1_index = self._create_index(self.source1_data, is_source2=False)
+        source2_index = self._create_index(self.source2_data, is_source2=True)
         
         # Find unique and common IDs
         source1_ids = set(source1_index.keys())
@@ -82,15 +82,28 @@ class ComparisonEngine:
             column_stats=column_stats
         )
         
-    def _create_index(self, data: pd.DataFrame) -> Dict[Tuple, Dict]:
-        """Create an index of rows based on ID columns"""
+    def _create_index(self, data: pd.DataFrame, is_source2: bool = False) -> Dict[Tuple, Dict]:
+        """Create an index of rows based on ID columns
+        
+        Args:
+            data: DataFrame to index
+            is_source2: Whether this is the second data source (affects column mapping)
+        """
         index = {}
         # Reset the index to make sure we process all rows
         data = data.reset_index(drop=True)
         
         for _, row in data.iterrows():
-            # Convert ID columns to strings and create tuple key
-            key = tuple(str(row[col]) for col in self.id_columns)
+            # For source2, map ID columns using column mapping if present
+            if is_source2:
+                id_values = []
+                for id_col in self.id_columns:
+                    mapped_col = self.column_mapping.get(id_col, id_col)
+                    id_values.append(str(row[mapped_col]))
+                key = tuple(id_values)
+            else:
+                key = tuple(str(row[col]) for col in self.id_columns)
+                
             # Convert row to dict, ensuring all values are stored as strings
             index[key] = {col: str(val) if pd.notna(val) else val 
                          for col, val in row.items()}

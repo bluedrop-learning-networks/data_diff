@@ -247,3 +247,28 @@ def test_different_column_names():
     result = engine.compare()
     assert len(result.differences) == 0
     assert result.column_stats['first_name'] == 1.0
+
+def test_mapped_id_columns():
+    """Test comparison with different ID column names"""
+    source1 = pd.DataFrame({
+        'customer_id': ['1', '2', '3'],
+        'name': ['Alice', 'Bob', 'Charlie']
+    })
+    
+    source2 = pd.DataFrame({
+        'id': ['1', '2', '3'],
+        'name': ['Alice', 'Bob', 'Charlie']
+    })
+    
+    engine = ComparisonEngine(
+        source1_data=source1,
+        source2_data=source2,
+        id_columns=['customer_id'],
+        column_mapping={'customer_id': 'id', 'name': 'name'}
+    )
+    
+    result = engine.compare()
+    assert len(result.unique_to_source1) == 0
+    assert len(result.unique_to_source2) == 0
+    assert len(result.differences) == 0
+    assert result.column_stats['name'] == 1.0
