@@ -1,5 +1,9 @@
 import pytest
-from datacompare.id_handler import IDHandler
+from datacompare.id_handler import (
+    IDHandler,
+    FatalIDValidationError,
+    WarningIDValidationError
+)
 
 @pytest.fixture
 def sample_data():
