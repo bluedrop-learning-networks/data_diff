@@ -91,18 +91,14 @@ class IDHandler:
                 validation_errors.append(
                     FatalIDValidationError(f"ID column '{col}' not found in data source")
                 )
-        
-        # If we have fatal errors, return early
-        if any(isinstance(error, FatalIDValidationError) for error in validation_errors):
-            return validation_errors
-                
+            
         # Check for null values (warnings)
         for col in id_columns:
-            if self._has_null_values(col):
+            if col in self.columns and self._has_null_values(col):
                 validation_errors.append(
                     WarningIDValidationError(f"ID column '{col}' contains null values")
                 )
-        
+    
         return validation_errors
                 
     def _has_null_values(self, column: str) -> bool:
