@@ -23,8 +23,8 @@ class ComparisonEngine:
     """Handles comparison of two data sources"""
     
     def __init__(self, 
-                 source1_data: List[Dict], 
-                 source2_data: List[Dict],
+                 source1_data: pd.DataFrame,
+                 source2_data: pd.DataFrame,
                  id_columns: List[str],
                  column_mapping: Dict[str, str],
                  config: Optional[ComparisonConfig] = None):
