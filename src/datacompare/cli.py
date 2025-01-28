@@ -55,11 +55,22 @@ def main():
         id_handler = IDHandler(source1.columns, sample1)
         if args.id_columns:
             id_columns = args.id_columns.split(',')
-            id_handler.validate_id_columns(id_columns)
+            validation_errors = id_handler.validate_id_columns(id_columns)
+            
+            # Handle validation errors
+            has_fatal = False
+            for error in validation_errors:
+                if isinstance(error, FatalIDValidationError):
+                    has_fatal = True
+                print(f"Error: {error.message}", file=sys.stderr)
+                
+            if has_fatal:
+                sys.exit(1)
         else:
             id_columns = id_handler.detect_id_columns()
             if not id_columns:
-                raise ValueError("No suitable ID columns found. Please specify with --id-columns")
+                print("Error: No suitable ID columns found. Please specify with --id-columns", file=sys.stderr)
+                sys.exit(1)
 
         # Check for duplicate IDs
         duplicates = id_handler.find_duplicate_ids(id_columns)
