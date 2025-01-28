@@ -2,6 +2,19 @@ from typing import List, Set, Dict, Optional
 import re
 from collections import Counter
 
+class IDValidationError:
+    """Base class for ID validation errors"""
+    def __init__(self, message: str):
+        self.message = message
+
+class FatalIDValidationError(IDValidationError):
+    """Error that prevents comparison from continuing"""
+    pass
+
+class WarningIDValidationError(IDValidationError):
+    """Warning that allows comparison to continue with caution"""
+    pass
+
 class IDHandler:
     """Handles detection and validation of ID columns"""
     
@@ -61,24 +74,36 @@ class IDHandler:
             
         return scores
         
-    def validate_id_columns(self, id_columns: List[str]) -> None:
+    def validate_id_columns(self, id_columns: List[str]) -> List[IDValidationError]:
         """Validate specified ID columns
-        
+
         Args:
             id_columns: List of column names to use as IDs
-            
-        Raises:
-            ValueError: If any validation fails
+
+        Returns:
+            List of validation errors found. Empty list if validation passes.
         """
-        # Check columns exist
+        validation_errors = []
+        
+        # Check columns exist (fatal errors)
         for col in id_columns:
             if col not in self.columns:
-                raise ValueError(f"ID column '{col}' not found in data source")
+                validation_errors.append(
+                    FatalIDValidationError(f"ID column '{col}' not found in data source")
+                )
+        
+        # If we have fatal errors, return early
+        if any(isinstance(error, FatalIDValidationError) for error in validation_errors):
+            return validation_errors
                 
-        # Check for null values
+        # Check for null values (warnings)
         for col in id_columns:
             if self._has_null_values(col):
-                raise ValueError(f"ID column '{col}' contains null values")
+                validation_errors.append(
+                    WarningIDValidationError(f"ID column '{col}' contains null values")
+                )
+        
+        return validation_errors
                 
     def _has_null_values(self, column: str) -> bool:
         """Check if column contains any null values"""

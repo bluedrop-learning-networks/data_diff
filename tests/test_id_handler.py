@@ -28,17 +28,28 @@ def test_validate_id_columns(sample_data):
     handler = IDHandler(['id', 'name', 'order_id'], sample_data)
     
     # Valid case
-    handler.validate_id_columns(['id', 'order_id'])
+    errors = handler.validate_id_columns(['id', 'order_id'])
+    assert len(errors) == 0
     
     # Invalid column
-    with pytest.raises(ValueError):
-        handler.validate_id_columns(['invalid_col'])
+    errors = handler.validate_id_columns(['invalid_col'])
+    assert len(errors) == 1
+    assert isinstance(errors[0], FatalIDValidationError)
+    assert "not found in data source" in errors[0].message
         
     # Null values
     data_with_null = sample_data + [{'id': None, 'name': 'Dave', 'order_id': 'A4'}]
     handler = IDHandler(['id', 'name', 'order_id'], data_with_null)
-    with pytest.raises(ValueError):
-        handler.validate_id_columns(['id'])
+    errors = handler.validate_id_columns(['id'])
+    assert len(errors) == 1
+    assert isinstance(errors[0], WarningIDValidationError)
+    assert "contains null values" in errors[0].message
+
+    # Multiple errors
+    errors = handler.validate_id_columns(['id', 'invalid_col'])
+    assert len(errors) == 2
+    assert any(isinstance(e, FatalIDValidationError) for e in errors)
+    assert any(isinstance(e, WarningIDValidationError) for e in errors)
 
 def test_find_duplicate_ids():
     data = [
