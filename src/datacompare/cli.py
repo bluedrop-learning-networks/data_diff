@@ -6,7 +6,7 @@ import pandas as pd
 
 from .datasource import create_data_source
 from .column_mapper import ColumnMapper
-from .id_handler import IDHandler, FatalIDValidationError
+from .id_handler import IDHandler, FatalIDValidationError, WarningIDValidationError
 from .comparison_engine import ComparisonEngine, ComparisonConfig
 from .report_generator import ReportGenerator
 
