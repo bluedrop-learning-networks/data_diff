@@ -62,7 +62,8 @@ def main():
             for error in validation_errors:
                 if isinstance(error, FatalIDValidationError):
                     has_fatal = True
-                print(f"Error: {error.message}", file=sys.stderr)
+                prefix = "Warning: " if isinstance(error, WarningIDValidationError) else "Error: "
+                print(f"{prefix}{error.message}", file=sys.stderr)
                 
             if has_fatal:
                 sys.exit(1)
