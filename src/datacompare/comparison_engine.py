@@ -98,8 +98,8 @@ class ComparisonEngine:
         diff_df = pd.DataFrame(differences) if differences else pd.DataFrame(columns=['id', 'source1_value', 'source2_value'])
             
         return ComparisonResult(
-            unique_to_source1=unique_df1,
-            unique_to_source2=unique_df2,
+            unique_to_source1=unique_to_source1,
+            unique_to_source2=unique_to_source2,
             differences=diff_df,
             column_stats=column_stats
         )
