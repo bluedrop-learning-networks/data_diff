@@ -237,12 +237,12 @@ def test_chunked_reading(tmp_path):
 
 def test_different_column_names():
     """Test comparison with different column names"""
-    source1 = pd.DataFrame({
+    source1 = pl.DataFrame({
         'id': ['1'],
         'first_name': ['Alice']
     })
     
-    source2 = pd.DataFrame({
+    source2 = pl.DataFrame({
         'id': ['1'],
         'name': ['Alice']
     })
@@ -260,12 +260,12 @@ def test_different_column_names():
 
 def test_mapped_id_columns():
     """Test comparison with different ID column names"""
-    source1 = pd.DataFrame({
+    source1 = pl.DataFrame({
         'customer_id': ['1', '2', '3'],
         'name': ['Alice', 'Bob', 'Charlie']
     })
     
-    source2 = pd.DataFrame({
+    source2 = pl.DataFrame({
         'id': ['1', '2', '3'],
         'name': ['Alice', 'Bob', 'Charlie']
     })
