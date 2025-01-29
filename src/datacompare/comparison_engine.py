@@ -66,19 +66,6 @@ class ComparisonEngine:
             suffix="_source2"
         ).collect()
 
-    def _find_unique_rows(self, merged_df: pl.DataFrame, source: int) -> pl.DataFrame:
-        """Find rows unique to source 1 or 2"""
-        suffix = "" if source == 1 else "_source2"
-        other_suffix = "_source2" if source == 1 else ""
-        
-        return merged_df.filter(
-            pl.all_horizontal([
-                pl.col(f"{c}{other_suffix}").is_null() 
-                for c in self.column_mapping.keys() 
-                if c not in self.id_columns
-            ])
-        ).select([c for c in self.source1_data.columns])
-
         # Find unique rows
         unique_to_source1 = self._find_unique_rows(merged_df, 1)
         unique_to_source2 = self._find_unique_rows(merged_df, 2)
@@ -92,10 +79,6 @@ class ComparisonEngine:
         # Determine columns to compare
         columns_to_compare = (self.config.columns_to_compare if self.config.columns_to_compare 
                             else [col for col in self.column_mapping.keys() if col not in self.id_columns])
-
-        # Compare values and collect differences
-        differences = []
-        column_stats = {}
 
         # Calculate column stats
         column_stats = {
@@ -121,8 +104,8 @@ class ComparisonEngine:
         )
 
         return ComparisonResult(
-            unique_to_source1=unique_to_source1.select([c for c in self.source1_data.columns]),
-            unique_to_source2=unique_to_source2.select([c for c in self.source1_data.columns]),
+            unique_to_source1=unique_to_source1,
+            unique_to_source2=unique_to_source2,
             differences=differences_df,
             column_stats=column_stats
         )
