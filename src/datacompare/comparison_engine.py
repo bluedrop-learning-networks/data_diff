@@ -66,6 +66,9 @@ class ComparisonEngine:
             col_source2 = f"{col}_source2"
             
             # Apply transformations based on config
+            col_source1 = f"{col}_source1"
+            col_source2 = f"{col}_source2"
+            
             s1_values = common_rows[col_source1].astype(str)
             s2_values = common_rows[col_source2].astype(str)
             
@@ -111,7 +114,7 @@ class ComparisonEngine:
             
         stats = {}
         for col in self.column_mapping:
-            col_source1 = col
+            col_source1 = f"{col}_source1"
             col_source2 = f"{col}_source2"
             
             s1_values = common_rows[col_source1].astype(str)
