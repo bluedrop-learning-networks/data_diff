@@ -39,9 +39,6 @@ class ComparisonEngine:
         # Prepare data for comparison by aligning columns
         source2_renamed = self.source2_data.rename(columns={v: k for k, v in self.column_mapping.items()})
         
-        # Prepare ID columns - they should not get suffixes
-        id_mapping = {id_col: id_col for id_col in self.id_columns}
-        
         # Create merged dataframe for comparison using ID columns
         merged_df = pd.merge(
             self.source1_data,
@@ -58,23 +55,25 @@ class ComparisonEngine:
         
         # Find differences in common rows
         common_rows = merged_df[merged_df['_merge'] == 'both'].drop(columns=['_merge'])
-        differences = []
         
         # Compare only specified columns
         columns_to_compare = (self.config.columns_to_compare if self.config.columns_to_compare 
                             else self.column_mapping.keys())
         
+        # Pre-compute column pairs for comparison
+        column_pairs = []
         for col in columns_to_compare:
-            # ID columns don't get suffixes during merge
             if col in self.id_columns:
-                col_source1 = col
-                col_source2 = col
+                column_pairs.append((col, col))
             else:
-                col_source1 = f"{col}_source1"
-                col_source2 = f"{col}_source2"
-            
-            s1_values = common_rows[col_source1].astype(str)
-            s2_values = common_rows[col_source2].astype(str)
+                column_pairs.append((f"{col}_source1", f"{col}_source2"))
+        
+        # Find all differences at once using vectorized operations
+        all_diffs_mask = pd.Series(False, index=common_rows.index)
+        
+        for col1, col2 in column_pairs:
+            s1_values = common_rows[col1].astype(str)
+            s2_values = common_rows[col2].astype(str)
             
             if self.config.trim_strings:
                 s1_values = s1_values.str.strip()
@@ -83,29 +82,30 @@ class ComparisonEngine:
             if not self.config.case_sensitive:
                 s1_values = s1_values.str.lower()
                 s2_values = s2_values.str.lower()
-                
-            # Find rows with differences
-            diff_mask = (s1_values != s2_values) & \
-                       (~(pd.isna(common_rows[col_source1]) & pd.isna(common_rows[col_source2])))
             
-            if diff_mask.any():
-                diff_rows = common_rows[diff_mask]
-                for _, row in diff_rows.iterrows():
-                    id_values = {id_col: row[id_col] for id_col in self.id_columns}
-                    # Create clean column names by removing suffixes
-                    source1_values = {
-                        col.replace('_source1', ''): val 
-                        for col, val in row.filter(like='_source1').to_dict().items()
-                    }
-                    source2_values = {
-                        col.replace('_source2', ''): val
-                        for col, val in row.filter(like='_source2').to_dict().items()
-                    }
-                    differences.append({
-                        'id': id_values,
-                        'source1_value': source1_values,
-                        'source2_value': source2_values
-                    })
+            diff_mask = (s1_values != s2_values) & \
+                       (~(pd.isna(common_rows[col1]) & pd.isna(common_rows[col2])))
+            all_diffs_mask |= diff_mask
+        
+        # Process differences more efficiently
+        differences = []
+        if all_diffs_mask.any():
+            diff_rows = common_rows[all_diffs_mask]
+            
+            # Pre-compute source1 and source2 column lists
+            source1_cols = [col for col in diff_rows.columns if col.endswith('_source1')]
+            source2_cols = [col for col in diff_rows.columns if col.endswith('_source2')]
+            
+            for _, row in diff_rows.iterrows():
+                id_values = {id_col: row[id_col] for id_col in self.id_columns}
+                source1_values = {col[:-8]: row[col] for col in source1_cols}  # Remove '_source1'
+                source2_values = {col[:-8]: row[col] for col in source2_cols}  # Remove '_source2'
+                
+                differences.append({
+                    'id': id_values,
+                    'source1_value': source1_values,
+                    'source2_value': source2_values
+                })
         
         # Calculate column statistics using vectorized operations
         column_stats = self._calculate_column_stats_vectorized(common_rows)
