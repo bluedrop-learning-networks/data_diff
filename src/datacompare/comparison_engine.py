@@ -33,23 +33,34 @@ class ComparisonEngine:
         self.column_mapping = column_mapping
         self.config = config or ComparisonConfig()
         
+    def _transform_column(self, expr):
+        """Apply configured transformations to a column expression"""
+        if self.config.trim_strings and not self.config.case_sensitive:
+            return expr.cast(pl.Utf8).str.strip_chars().str.to_lowercase()
+        elif self.config.trim_strings:
+            return expr.cast(pl.Utf8).str.strip_chars()
+        elif not self.config.case_sensitive:
+            return expr.cast(pl.Utf8).str.to_lowercase()
+        return expr.cast(pl.Utf8)
+        
     def compare(self) -> ComparisonResult:
         """Perform full comparison of the two data sources"""
-        # Rename columns in source2 to match source1
-        source2_renamed = self.source2_data.rename(
+        # Start with lazy frames
+        lazy1 = self.source1_data.lazy()
+        lazy2 = self.source2_data.lazy()
+        
+        # Rename columns in source2 lazily
+        source2_renamed = lazy2.rename(
             {v: k for k, v in self.column_mapping.items()}
         )
 
-        # Prepare join expressions for ID columns
-        join_on = self.id_columns
-
         # Perform outer join
-        merged_df = self.source1_data.join(
+        merged_df = lazy1.join(
             source2_renamed,
-            on=join_on,
+            on=self.id_columns,
             how="full",
             suffix="_source2"
-        )
+        ).collect()
 
         # Find unique rows
         unique_to_source1 = merged_df.filter(
@@ -75,16 +86,8 @@ class ComparisonEngine:
 
         # First, calculate stats for each column
         for col in columns_to_compare:
-            expr1 = pl.col(col).cast(pl.Utf8)
-            expr2 = pl.col(f"{col}_source2").cast(pl.Utf8)
-
-            if self.config.trim_strings:
-                expr1 = expr1.str.strip_chars()
-                expr2 = expr2.str.strip_chars()
-
-            if not self.config.case_sensitive:
-                expr1 = expr1.str.to_lowercase()
-                expr2 = expr2.str.to_lowercase()
+            expr1 = self._transform_column(pl.col(col))
+            expr2 = self._transform_column(pl.col(f"{col}_source2"))
 
             # Calculate matches including null handling
             matches = common_rows.select([
@@ -116,20 +119,14 @@ class ComparisonEngine:
             pl.any_horizontal(diff_conditions)
         )
 
-        # Create difference records
-        for row in diff_rows.iter_rows(named=True):
-            id_values = {id_col: row[id_col] for id_col in self.id_columns}
-            source1_values = {col: row[col] for col in columns_to_compare}
-            source2_values = {col: row[f"{col}_source2"] for col in columns_to_compare}
-            
-            differences.append({
-                **id_values,
-                **{f"{k}_source1": v for k, v in source1_values.items()},
-                **{f"{k}_source2": v for k, v in source2_values.items()}
-            })
-
-        # Create differences DataFrame
-        differences_df = pl.DataFrame(differences) if differences else pl.DataFrame()
+        # Process differences in batch
+        differences_df = (
+            diff_rows.select([
+                *[pl.col(id_col) for id_col in self.id_columns],
+                *[pl.col(col).alias(f"{col}_source1") for col in columns_to_compare],
+                *[pl.col(f"{col}_source2") for col in columns_to_compare]
+            ]) if not diff_rows.is_empty() else pl.DataFrame()
+        )
 
         return ComparisonResult(
             unique_to_source1=unique_to_source1.select([c for c in self.source1_data.columns]),
