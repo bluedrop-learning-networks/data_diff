@@ -36,44 +36,66 @@ class ComparisonEngine:
         
     def compare(self) -> ComparisonResult:
         """Perform full comparison of the two data sources"""
-        # Create indexes for faster lookup
-        source1_index = self._create_index(self.source1_data, is_source2=False)
-        source2_index = self._create_index(self.source2_data, is_source2=True)
+        # Prepare data for comparison by aligning columns
+        source2_renamed = self.source2_data.rename(columns={v: k for k, v in self.column_mapping.items()})
         
-        # Find unique and common IDs
-        source1_ids = set(source1_index.keys())
-        source2_ids = set(source2_index.keys())
+        # Create merged dataframe for comparison using ID columns
+        merged_df = pd.merge(
+            self.source1_data, 
+            source2_renamed,
+            on=self.id_columns,
+            how='outer',
+            indicator=True,
+            suffixes=('_source1', '_source2')
+        )
         
-        unique_to_source1 = source1_ids - source2_ids
-        unique_to_source2 = source2_ids - source1_ids
-        common_ids = source1_ids & source2_ids
+        # Find unique rows
+        unique_to_source1 = merged_df[merged_df['_merge'] == 'left_only'].drop(columns=['_merge'])
+        unique_to_source2 = merged_df[merged_df['_merge'] == 'right_only'].drop(columns=['_merge'])
         
-        # Collect results
-        unique_rows1 = [source1_index[id_] for id_ in unique_to_source1]
-        unique_rows2 = [source2_index[id_] for id_ in unique_to_source2]
+        # Find differences in common rows
+        common_rows = merged_df[merged_df['_merge'] == 'both'].drop(columns=['_merge'])
         differences = []
         
-        # Compare common rows
-        for id_ in common_ids:
-            row1 = source1_index[id_]
-            row2 = source2_index[id_]
+        # Compare only specified columns
+        columns_to_compare = (self.config.columns_to_compare if self.config.columns_to_compare 
+                            else self.column_mapping.keys())
         
-            if diff := self._compare_rows(row1, row2):
-                # The diff already contains source1_value and source2_value
-                diff_row = {'id': dict(zip(self.id_columns, id_))}
-                diff_row.update(diff)  # Add the source1_value and source2_value directly
-                differences.append(diff_row)
-    
-        # Convert results to DataFrames
-        columns1 = self.source1_data.columns if hasattr(self.source1_data, 'columns') else list(self.source1_data[0].keys())
-        columns2 = self.source2_data.columns if hasattr(self.source2_data, 'columns') else list(self.source2_data[0].keys())
+        for col in columns_to_compare:
+            col_source1 = col
+            col_source2 = f"{col}_source2"
+            
+            # Apply transformations based on config
+            s1_values = common_rows[col_source1].astype(str)
+            s2_values = common_rows[col_source2].astype(str)
+            
+            if self.config.trim_strings:
+                s1_values = s1_values.str.strip()
+                s2_values = s2_values.str.strip()
+                
+            if not self.config.case_sensitive:
+                s1_values = s1_values.str.lower()
+                s2_values = s2_values.str.lower()
+                
+            # Find rows with differences
+            diff_mask = (s1_values != s2_values) & \
+                       (~(pd.isna(common_rows[col_source1]) & pd.isna(common_rows[col_source2])))
+            
+            if diff_mask.any():
+                diff_rows = common_rows[diff_mask]
+                for _, row in diff_rows.iterrows():
+                    id_values = {id_col: row[id_col] for id_col in self.id_columns}
+                    differences.append({
+                        'id': id_values,
+                        'source1_value': row.filter(like='_source1').to_dict(),
+                        'source2_value': row.filter(like='_source2').to_dict()
+                    })
         
-        unique_df1 = pd.DataFrame(unique_rows1, columns=columns1) if unique_rows1 else pd.DataFrame(columns=columns1)
-        unique_df2 = pd.DataFrame(unique_rows2, columns=columns2) if unique_rows2 else pd.DataFrame(columns=columns2)
+        # Calculate column statistics using vectorized operations
+        column_stats = self._calculate_column_stats_vectorized(common_rows)
+        
+        # Create differences DataFrame
         diff_df = pd.DataFrame(differences) if differences else pd.DataFrame(columns=['id', 'source1_value', 'source2_value'])
-    
-        # Calculate column statistics
-        column_stats = self._calculate_column_stats(source1_index, source2_index, common_ids)
             
         return ComparisonResult(
             unique_to_source1=unique_df1,
@@ -82,112 +104,32 @@ class ComparisonEngine:
             column_stats=column_stats
         )
         
-    def _create_index(self, data: pd.DataFrame, is_source2: bool = False) -> Dict[Tuple, Dict]:
-        """Create an index of rows based on ID columns
-        
-        Args:
-            data: DataFrame to index
-            is_source2: Whether this is the second data source (affects column mapping)
-        """
-        index = {}
-        # Reset the index to make sure we process all rows
-        data = data.reset_index(drop=True)
-        
-        for _, row in data.iterrows():
-            # For source2, map ID columns using column mapping if present
-            if is_source2:
-                id_values = []
-                for id_col in self.id_columns:
-                    mapped_col = self.column_mapping.get(id_col, id_col)
-                    id_values.append(str(row[mapped_col]))
-                key = tuple(id_values)
-            else:
-                key = tuple(str(row[col]) for col in self.id_columns)
-                
-            # Convert row to dict, ensuring all values are stored as strings
-            index[key] = {col: str(val) if pd.notna(val) else val 
-                         for col, val in row.items()}
-        return index
-        
-    def _compare_rows(self, row1: Dict, row2: Dict) -> Optional[Dict]:
-        """Compare two rows and return differences"""
-        differences = {}
-        
-        columns_to_compare = (self.config.columns_to_compare if self.config.columns_to_compare 
-                            else self.column_mapping.keys())
-        
-        has_differences = False
-        for source1_col in columns_to_compare:
-            source2_col = self.column_mapping[source1_col]
-            
-            value1 = row1.get(source1_col)
-            value2 = row2.get(source2_col)
-            
-            # Handle None/NaN equality
-            if pd.isna(value1) and pd.isna(value2):
-                continue
-                
-            # Convert to string only if both values are not None/NaN
-            if not pd.isna(value1) and not pd.isna(value2):
-                value1 = str(value1)
-                value2 = str(value2)
-                
-                if self.config.trim_strings:
-                    value1 = value1.strip()
-                    value2 = value2.strip()
-                    
-                if not self.config.case_sensitive:
-                    value1 = value1.lower()
-                    value2 = value2.lower()
-        
-            if value1 != value2:
-                has_differences = True
-                
-        if has_differences:
-            differences = {
-                'source1_value': row1,
-                'source2_value': row2
-            }
-                
-        return differences if differences else None
-        
-    def _calculate_column_stats(self, 
-                              source1_index: Dict[Tuple, Dict],
-                              source2_index: Dict[Tuple, Dict],
-                              common_ids: Set[Tuple]) -> Dict[str, float]:
-        """Calculate similarity statistics for each column"""
-        if not common_ids:
+    def _calculate_column_stats_vectorized(self, common_rows: pd.DataFrame) -> Dict[str, float]:
+        """Calculate similarity statistics for each column using vectorized operations"""
+        if common_rows.empty:
             return {}
             
-        matches = {col: 0 for col in self.column_mapping}
-        total = len(common_ids)
-        
-        for id_ in common_ids:
-            row1 = source1_index[id_]
-            row2 = source2_index[id_]
+        stats = {}
+        for col in self.column_mapping:
+            col_source1 = col
+            col_source2 = f"{col}_source2"
             
-            for source1_col, source2_col in self.column_mapping.items():
-                value1 = row1.get(source1_col)
-                value2 = row2.get(source2_col)
+            s1_values = common_rows[col_source1].astype(str)
+            s2_values = common_rows[col_source2].astype(str)
+            
+            if self.config.trim_strings:
+                s1_values = s1_values.str.strip()
+                s2_values = s2_values.str.strip()
                 
-                # Consider None and np.nan as equal
-                if pd.isna(value1) and pd.isna(value2):
-                    matches[source1_col] += 1
-                    continue
-                    
-                if not pd.isna(value1) and not pd.isna(value2):
-                    value1 = str(value1)
-                    value2 = str(value2)
-                    
-                    if self.config.trim_strings:
-                        value1 = value1.strip()
-                        value2 = value2.strip()
-                        
-                    if not self.config.case_sensitive:
-                        value1 = value1.lower()
-                        value2 = value2.lower()
-                        
-                    if value1 == value2:
-                        matches[source1_col] += 1
-                    
-        return {col: matches[col] / total for col in matches}
+            if not self.config.case_sensitive:
+                s1_values = s1_values.str.lower()
+                s2_values = s2_values.str.lower()
+                
+            # Calculate matches including handling of NA values
+            na_match = pd.isna(common_rows[col_source1]) & pd.isna(common_rows[col_source2])
+            value_match = (s1_values == s2_values)
+            total_matches = (na_match | value_match).sum()
+            
+            stats[col] = total_matches / len(common_rows)
+            
+        return stats
