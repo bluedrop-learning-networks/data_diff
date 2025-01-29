@@ -102,35 +102,28 @@ class ReportGenerator:
             output.extend(['', f"{Style.BRIGHT}Modified Rows:{Style.RESET_ALL}"])
             
             for row in self.result.differences.iter_rows(named=True):
-                id_str = ' '.join(f"{k}={v}" for k, v in row['id'].items())
+                id_str = f"id={row['id']}"
                 output.append(f"\n{Style.BRIGHT}ID: {id_str}{Style.RESET_ALL}")
-                
-                # Get the full rows from both sources
-                source1_row = dict(row['source1_value'])
-                source2_row = dict(row['source2_value'])
                 
                 # Find which columns have differences
                 diff_cols = set()
-                for col in source1_row:
-                    if col in source2_row and source1_row[col] != source2_row[col]:
+                for col in self.result.column_stats.keys():
+                    if row.get(f"{col}_source1") != row.get(f"{col}_source2"):
                         diff_cols.add(col)
 
-                # Format source1 row with red highlighting for changed values
+                # Format source1 values with red highlighting for changes
                 source1_parts = []
-                for col, val in source1_row.items():
-                    if col in diff_cols:
-                        source1_parts.append(f"{col}={Fore.RED}{val}{Style.RESET_ALL}")
-                    else:
-                        source1_parts.append(f"{col}={val}")
-                output.append(f"- {', '.join(source1_parts)}")
-
-                # Format source2 row with green highlighting for changed values
                 source2_parts = []
-                for col, val in source2_row.items():
+                for col in self.result.column_stats.keys():
+                    val1 = row.get(f"{col}_source1")
+                    val2 = row.get(f"{col}_source2")
                     if col in diff_cols:
-                        source2_parts.append(f"{col}={Fore.GREEN}{val}{Style.RESET_ALL}")
+                        source1_parts.append(f"{col}={Fore.RED}{val1}{Style.RESET_ALL}")
+                        source2_parts.append(f"{col}={Fore.GREEN}{val2}{Style.RESET_ALL}")
                     else:
-                        source2_parts.append(f"{col}={val}")
+                        source1_parts.append(f"{col}={val1}")
+                        source2_parts.append(f"{col}={val2}")
+                output.append(f"- {', '.join(source1_parts)}")
                 output.append(f"+ {', '.join(source2_parts)}")
 
         return '\n'.join(output)
@@ -166,8 +159,8 @@ class ReportGenerator:
         report = {
             'summary': self.generate_summary(),
             'details': {
-                'unique_to_source1': self.result.unique_to_source1.to_dict('records'),
-                'unique_to_source2': self.result.unique_to_source2.to_dict('records'),
+                'unique_to_source1': self.result.unique_to_source1.to_dicts(),
+                'unique_to_source2': self.result.unique_to_source2.to_dicts(),
                 'differences': []
             }
         }
@@ -239,7 +232,7 @@ class ReportGenerator:
                 # Write modified rows
                 writer.writerow(['Modified Rows'])
                 writer.writerow(['ID', 'Column', 'Source 1 Value', 'Source 2 Value'])
-                for _, row in self.result.differences.iterrows():
+                for row in self.result.differences.iter_rows(named=True):
                     id_str = ','.join(f"{k}={v}" for k, v in row['id'].items())
                     source1 = row['source1_value']
                     source2 = row['source2_value']
