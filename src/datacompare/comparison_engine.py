@@ -73,6 +73,7 @@ class ComparisonEngine:
         differences = []
         column_stats = {}
 
+        # First, calculate stats for each column
         for col in columns_to_compare:
             expr1 = pl.col(col).cast(pl.Utf8)
             expr2 = pl.col(f"{col}_source2").cast(pl.Utf8)
@@ -92,21 +93,26 @@ class ComparisonEngine:
             
             column_stats[col] = matches.mean()
 
-            # Find differences
-            diff_mask = ~matches
-            if diff_mask.any():
-                diff_rows = common_rows.filter(diff_mask)
-                
-                for row in diff_rows.iter_rows(named=True):
-                    id_values = {id_col: row[id_col] for id_col in self.id_columns}
-                    source1_values = {col: row[col]}
-                    source2_values = {col: row[f"{col}_source2"]}
-                    
-                    differences.append({
-                        **id_values,
-                        **{f"{k}_source1": v for k, v in source1_values.items()},
-                        **{f"{k}_source2": v for k, v in source2_values.items()}
-                    })
+        # Then find all differences in a single pass
+        diff_rows = common_rows.filter(
+            pl.any_horizontal([
+                ~((pl.col(col).cast(pl.Utf8) == pl.col(f"{col}_source2").cast(pl.Utf8)) |
+                  (pl.col(col).is_null() & pl.col(f"{col}_source2").is_null()))
+                for col in columns_to_compare
+            ])
+        )
+
+        # Create difference records
+        for row in diff_rows.iter_rows(named=True):
+            id_values = {id_col: row[id_col] for id_col in self.id_columns}
+            source1_values = {col: row[col] for col in columns_to_compare}
+            source2_values = {col: row[f"{col}_source2"] for col in columns_to_compare}
+            
+            differences.append({
+                **id_values,
+                **{f"{k}_source1": v for k, v in source1_values.items()},
+                **{f"{k}_source2": v for k, v in source2_values.items()}
+            })
 
         # Create differences DataFrame
         differences_df = pl.DataFrame(differences) if differences else pl.DataFrame()
