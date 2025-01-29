@@ -33,6 +33,22 @@ class ComparisonEngine:
         self.column_mapping = column_mapping
         self.config = config or ComparisonConfig()
         
+    def _find_unique_rows(self, merged_df: pl.DataFrame, source: int) -> pl.DataFrame:
+        """Find rows unique to source 1 or 2"""
+        suffix = "" if source == 1 else "_source2"
+        other_suffix = "_source2" if source == 1 else ""
+        
+        return merged_df.filter(
+            pl.all_horizontal([
+                pl.col(f"{c}{other_suffix}").is_null() 
+                for c in self.column_mapping.keys() 
+                if c not in self.id_columns
+            ])
+        ).select([
+            *[pl.col(f"{c}{suffix}").alias(c) for c in self.id_columns],
+            *[pl.col(f"{c}{suffix}").alias(c) for c in self.column_mapping.keys() if c not in self.id_columns]
+        ])
+
     def _compare_columns(self, col: str) -> pl.Expr:
         """Create comparison expression for a column pair"""
         expr1 = pl.col(col)
