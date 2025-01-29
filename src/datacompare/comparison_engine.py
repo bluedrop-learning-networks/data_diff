@@ -45,35 +45,29 @@ class ComparisonEngine:
             source2_renamed,
             on=self.id_columns,
             how='outer',
-            indicator=True,
-            suffixes=('_source1', '_source2')
+            indicator=True
         )
         
-        # Find unique rows
+        # Find unique rows more efficiently
         unique_to_source1 = merged_df[merged_df['_merge'] == 'left_only'].drop(columns=['_merge'])
         unique_to_source2 = merged_df[merged_df['_merge'] == 'right_only'].drop(columns=['_merge'])
         
-        # Find differences in common rows
+        # Get common rows
         common_rows = merged_df[merged_df['_merge'] == 'both'].drop(columns=['_merge'])
         
         # Compare only specified columns
         columns_to_compare = (self.config.columns_to_compare if self.config.columns_to_compare 
-                            else self.column_mapping.keys())
+                         else [col for col in self.column_mapping.keys() if col not in self.id_columns])
+
+        # Create comparison mask for all columns at once
+        comparison_mask = pd.DataFrame(index=common_rows.index)
         
-        # Pre-compute column pairs for comparison
-        column_pairs = []
         for col in columns_to_compare:
-            if col in self.id_columns:
-                column_pairs.append((col, col))
-            else:
-                column_pairs.append((f"{col}_source1", f"{col}_source2"))
-        
-        # Find all differences at once using vectorized operations
-        all_diffs_mask = pd.Series(False, index=common_rows.index)
-        
-        for col1, col2 in column_pairs:
-            s1_values = common_rows[col1].astype(str)
-            s2_values = common_rows[col2].astype(str)
+            col_source1 = col if col in self.id_columns else f"{col}_source1"
+            col_source2 = col if col in self.id_columns else f"{col}_source2"
+            
+            s1_values = common_rows[col_source1].astype(str)
+            s2_values = common_rows[col_source2].astype(str)
             
             if self.config.trim_strings:
                 s1_values = s1_values.str.strip()
@@ -83,23 +77,26 @@ class ComparisonEngine:
                 s1_values = s1_values.str.lower()
                 s2_values = s2_values.str.lower()
             
-            diff_mask = (s1_values != s2_values) & \
-                       (~(pd.isna(common_rows[col1]) & pd.isna(common_rows[col2])))
-            all_diffs_mask |= diff_mask
+            comparison_mask[col] = ~(s1_values == s2_values)
         
-        # Process differences more efficiently
+        # Find rows with any differences
+        diff_mask = comparison_mask.any(axis=1)
+        
+        # Create differences DataFrame more efficiently
         differences = []
-        if all_diffs_mask.any():
-            diff_rows = common_rows[all_diffs_mask]
-            
-            # Pre-compute source1 and source2 column lists
-            source1_cols = [col for col in diff_rows.columns if col.endswith('_source1')]
-            source2_cols = [col for col in diff_rows.columns if col.endswith('_source2')]
-            
-            for _, row in diff_rows.iterrows():
+        if diff_mask.any():
+            diff_rows = common_rows[diff_mask]
+            for idx, row in diff_rows.iterrows():
                 id_values = {id_col: row[id_col] for id_col in self.id_columns}
-                source1_values = {col[:-8]: row[col] for col in source1_cols}  # Remove '_source1'
-                source2_values = {col[:-8]: row[col] for col in source2_cols}  # Remove '_source2'
+                diff_cols = comparison_mask.columns[comparison_mask.loc[idx]]
+                
+                source1_values = {}
+                source2_values = {}
+                for col in diff_cols:
+                    col_source1 = col if col in self.id_columns else f"{col}_source1"
+                    col_source2 = col if col in self.id_columns else f"{col}_source2"
+                    source1_values[col] = row[col_source1]
+                    source2_values[col] = row[col_source2]
                 
                 differences.append({
                     'id': id_values,
@@ -107,16 +104,19 @@ class ComparisonEngine:
                     'source2_value': source2_values
                 })
         
-        # Calculate column statistics using vectorized operations
-        column_stats = self._calculate_column_stats_vectorized(common_rows)
-        
-        # Create differences DataFrame
-        diff_df = pd.DataFrame(differences) if differences else pd.DataFrame(columns=['id', 'source1_value', 'source2_value'])
+        # Calculate column stats using vectorized operations
+        column_stats = {}
+        for col in columns_to_compare:
+            col_source1 = col if col in self.id_columns else f"{col}_source1"
+            col_source2 = col if col in self.id_columns else f"{col}_source2"
             
+            matches = (common_rows[col_source1].astype(str) == common_rows[col_source2].astype(str))
+            column_stats[col] = matches.mean()
+
         return ComparisonResult(
             unique_to_source1=unique_to_source1,
             unique_to_source2=unique_to_source2,
-            differences=diff_df,
+            differences=pd.DataFrame(differences) if differences else pd.DataFrame(columns=['id', 'source1_value', 'source2_value']),
             column_stats=column_stats
         )
         
