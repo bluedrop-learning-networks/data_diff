@@ -46,9 +46,9 @@ class ReportGenerator:
         output.extend(self._generate_summary_section())
         
         # Add detailed diff section if requested
-        if show_diff and (not self.result.differences.empty or 
-                         not self.result.unique_to_source1.empty or 
-                         not self.result.unique_to_source2.empty):
+        if show_diff and (self.result.differences.height > 0 or 
+                         self.result.unique_to_source1.height > 0 or 
+                         self.result.unique_to_source2.height > 0):
             output.extend(['', f"{Style.BRIGHT}=== Detailed Differences ==={Style.RESET_ALL}"])
             output.append(self._generate_detailed_diff())
         
@@ -86,19 +86,19 @@ class ReportGenerator:
         col_width = min(40, (term_width - 10) // 2)  # Leave room for separators
 
         # Show removed rows (unique to source 1)
-        if not self.result.unique_to_source1.empty:
+        if self.result.unique_to_source1.height > 0:
             output.extend(['', f"{Style.BRIGHT}Rows Removed (Unique to Source 1):{Style.RESET_ALL}"])
             for _, row in self.result.unique_to_source1.iterrows():
                 output.append(f"{Fore.RED}- {dict(row)}{Style.RESET_ALL}")
 
         # Show added rows (unique to source 2)
-        if not self.result.unique_to_source2.empty:
+        if self.result.unique_to_source2.height > 0:
             output.extend(['', f"{Style.BRIGHT}Rows Added (Unique to Source 2):{Style.RESET_ALL}"])
             for _, row in self.result.unique_to_source2.iterrows():
                 output.append(f"{Fore.GREEN}+ {dict(row)}{Style.RESET_ALL}")
 
         # Show modified rows
-        if not self.result.differences.empty:
+        if self.result.differences.height > 0:
             output.extend(['', f"{Style.BRIGHT}Modified Rows:{Style.RESET_ALL}"])
             
             for _, row in self.result.differences.iterrows():
