@@ -166,22 +166,20 @@ class ReportGenerator:
         }
         
         # Add detailed differences
-        for _, row in self.result.differences.iterrows():
+        for row in self.result.differences.iter_rows(named=True):
             diff_entry = {
                 'id': row['id'],
-                'source1_value': row['source1_value'],
-                'source2_value': row['source2_value'],
                 'changes': {}
             }
             
             # Calculate specific changes
-            source1 = row['source1_value']
-            source2 = row['source2_value']
-            for col in source1:
-                if col in source2 and source1[col] != source2[col]:
+            for col in self.result.column_stats.keys():
+                val1 = row.get(f"{col}_source1")
+                val2 = row.get(f"{col}_source2")
+                if val1 != val2:
                     diff_entry['changes'][col] = {
-                        'source1': source1[col],
-                        'source2': source2[col]
+                        'source1': val1,
+                        'source2': val2
                     }
                     
             report['details']['differences'].append(diff_entry)
@@ -233,15 +231,14 @@ class ReportGenerator:
                 writer.writerow(['Modified Rows'])
                 writer.writerow(['ID', 'Column', 'Source 1 Value', 'Source 2 Value'])
                 for row in self.result.differences.iter_rows(named=True):
-                    id_str = ','.join(f"{k}={v}" for k, v in row['id'].items())
-                    source1 = row['source1_value']
-                    source2 = row['source2_value']
-                    
-                    for col in source1:
-                        if col in source2 and source1[col] != source2[col]:
+                    id_str = f"id={row['id']}"
+                    for col in self.result.column_stats.keys():
+                        val1 = row.get(f"{col}_source1")
+                        val2 = row.get(f"{col}_source2")
+                        if val1 != val2:
                             writer.writerow([
                                 id_str,
                                 col,
-                                source1[col],
-                                source2[col]
+                                val1,
+                                val2
                             ])
