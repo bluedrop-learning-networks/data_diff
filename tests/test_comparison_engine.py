@@ -212,8 +212,8 @@ def test_chunked_reading(tmp_path):
     }).write_csv(file2)
         
     # Read in chunks
-    chunks1 = [pl.scan_csv(file1).fetch(n_rows=100) for _ in range(10)]
-    chunks2 = [pl.scan_csv(file2).fetch(n_rows=100) for _ in range(10)]
+    chunks1 = [pl.scan_csv(file1).collect().head(100) for _ in range(10)]
+    chunks2 = [pl.scan_csv(file2).collect().head(100) for _ in range(10)]
     
     all_results = []
     for df1, df2 in zip(chunks1, chunks2):

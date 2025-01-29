@@ -48,8 +48,7 @@ class ComparisonEngine:
             source2_renamed,
             on=join_on,
             how="outer",
-            lsuffix="",
-            rsuffix="_source2"
+            suffix="_source2"
         )
 
         # Find unique rows
