@@ -1,18 +1,18 @@
 import pytest
-import pandas as pd
+import polars as pl
 import numpy as np
 from datacompare.comparison_engine import ComparisonEngine, ComparisonConfig
 
 @pytest.fixture
 def basic_data():
     """Create two simple dataframes for testing"""
-    source1 = pd.DataFrame({
+    source1 = pl.DataFrame({
         'id': ['1', '2', '3'],
         'name': ['Alice', 'Bob', 'Charlie'],
         'value': ['100', '200', '300']
     })
     
-    source2 = pd.DataFrame({
+    source2 = pl.DataFrame({
         'id': ['1', '2', '4'],
         'name': ['Alice', 'Bob', 'David'],
         'value': ['100', '250', '400']  # Value different for id=2
@@ -24,23 +24,33 @@ def basic_data():
 def large_data():
     """Create larger dataframes for performance testing"""
     size = 10000
-    source1 = pd.DataFrame({
+    source1 = pl.DataFrame({
         'id': range(size),
         'name': [f'Name{i}' for i in range(size)],
-        'value': np.random.randint(1, 1000, size)
+        'value': np.random.randint(1, 1000, size).tolist()
     })
     
     # Create source2 with some differences
-    source2 = source1.copy()
-    source2.loc[::2, 'value'] += 1  # Modify every other row
+    source2 = source1.clone()
+    source2 = source2.with_columns(
+        pl.when(pl.col('id') % 2 == 0)
+        .then(pl.col('value') + 1)
+        .otherwise(pl.col('value'))
+        .alias('value')
+    )
     
     # Add some new rows unique to source2
-    new_rows = pd.DataFrame({
-        'id': range(size, size + 100),  # Add 100 new IDs
+    new_rows = pl.DataFrame({
+        'id': range(size, size + 100),
         'name': [f'Name{i}' for i in range(size, size + 100)],
-        'value': np.random.randint(1, 1000, 100)
+        'value': np.random.randint(1, 1000, 100).tolist()
     })
-    source2 = pd.concat([source2.sample(frac=0.9), new_rows])  # Remove 10% of original rows and add new ones
+    
+    # Sample 90% of rows and concatenate with new rows
+    source2 = pl.concat([
+        source2.sample(fraction=0.9, seed=42),
+        new_rows
+    ])
     
     return source1, source2
 
@@ -73,12 +83,12 @@ def test_basic_comparison(basic_data):
 
 def test_case_insensitive_comparison():
     """Test case-insensitive string comparison"""
-    source1 = pd.DataFrame({
+    source1 = pl.DataFrame({
         'id': ['1'],
         'name': ['Alice']
     })
     
-    source2 = pd.DataFrame({
+    source2 = pl.DataFrame({
         'id': ['1'],
         'name': ['ALICE']
     })
@@ -97,12 +107,12 @@ def test_case_insensitive_comparison():
 
 def test_string_trimming():
     """Test string trimming functionality"""
-    source1 = pd.DataFrame({
+    source1 = pl.DataFrame({
         'id': ['1'],
         'name': ['Alice  ']
     })
     
-    source2 = pd.DataFrame({
+    source2 = pl.DataFrame({
         'id': ['1'],
         'name': ['  Alice']
     })
@@ -121,13 +131,13 @@ def test_string_trimming():
 
 def test_column_selection():
     """Test comparing only selected columns"""
-    source1 = pd.DataFrame({
+    source1 = pl.DataFrame({
         'id': ['1'],
         'name': ['Alice'],
         'value': ['100']
     })
     
-    source2 = pd.DataFrame({
+    source2 = pl.DataFrame({
         'id': ['1'],
         'name': ['Alice'],
         'value': ['200']  # Different value
@@ -165,14 +175,14 @@ def test_large_dataset_performance(large_data):
 
 def test_missing_values():
     """Test handling of missing/null values"""
-    source1 = pd.DataFrame({
+    source1 = pl.DataFrame({
         'id': ['1', '2'],
         'value': ['100', None]
     })
     
-    source2 = pd.DataFrame({
+    source2 = pl.DataFrame({
         'id': ['1', '2'],
-        'value': ['100', np.nan]
+        'value': ['100', None]
     })
     
     engine = ComparisonEngine(
@@ -191,19 +201,19 @@ def test_chunked_reading(tmp_path):
     file1 = tmp_path / "source1.csv"
     file2 = tmp_path / "source2.csv"
     
-    pd.DataFrame({
+    pl.DataFrame({
         'id': range(1000),
         'value': range(1000)
-    }).to_csv(file1, index=False)
-    
-    pd.DataFrame({
+    }).write_csv(file1)
+        
+    pl.DataFrame({
         'id': range(1000),
         'value': range(1000)
-    }).to_csv(file2, index=False)
-    
+    }).write_csv(file2)
+        
     # Read in chunks
-    chunks1 = pd.read_csv(file1, chunksize=100)
-    chunks2 = pd.read_csv(file2, chunksize=100)
+    chunks1 = [pl.scan_csv(file1).fetch(n_rows=100) for _ in range(10)]
+    chunks2 = [pl.scan_csv(file2).fetch(n_rows=100) for _ in range(10)]
     
     all_results = []
     for df1, df2 in zip(chunks1, chunks2):
