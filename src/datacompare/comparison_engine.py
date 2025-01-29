@@ -94,12 +94,26 @@ class ComparisonEngine:
             column_stats[col] = matches.mean()
 
         # Then find all differences in a single pass
+        diff_conditions = []
+        for col in columns_to_compare:
+            expr1 = pl.col(col).cast(pl.Utf8)
+            expr2 = pl.col(f"{col}_source2").cast(pl.Utf8)
+
+            if self.config.trim_strings:
+                expr1 = expr1.str.strip_chars()
+                expr2 = expr2.str.strip_chars()
+
+            if not self.config.case_sensitive:
+                expr1 = expr1.str.to_lowercase()
+                expr2 = expr2.str.to_lowercase()
+
+            diff_conditions.append(
+                ~((expr1 == expr2) |
+                  (expr1.is_null() & expr2.is_null()))
+            )
+
         diff_rows = common_rows.filter(
-            pl.any_horizontal([
-                ~((pl.col(col).cast(pl.Utf8) == pl.col(f"{col}_source2").cast(pl.Utf8)) |
-                  (pl.col(col).is_null() & pl.col(f"{col}_source2").is_null()))
-                for col in columns_to_compare
-            ])
+            pl.any_horizontal(diff_conditions)
         )
 
         # Create difference records
