@@ -45,7 +45,8 @@ class ComparisonEngine:
             source2_renamed,
             on=self.id_columns,
             how='outer',
-            indicator=True
+            indicator=True,
+            suffixes=('_source1', '_source2')
         )
         
         # Find unique rows more efficiently
