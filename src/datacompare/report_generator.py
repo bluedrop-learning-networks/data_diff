@@ -102,7 +102,11 @@ class ReportGenerator:
             output.extend(['', f"{Style.BRIGHT}Modified Rows:{Style.RESET_ALL}"])
             
             for row in self.result.differences.iter_rows(named=True):
-                id_str = f"id={row['id']}"
+                id_parts = []
+                for id_col in self.result.unique_to_source1.columns:
+                    if id_col in row:
+                        id_parts.append(f"{id_col}={row[id_col]}")
+                id_str = ', '.join(id_parts)
                 output.append(f"\n{Style.BRIGHT}ID: {id_str}{Style.RESET_ALL}")
                 
                 # Find which columns have differences
