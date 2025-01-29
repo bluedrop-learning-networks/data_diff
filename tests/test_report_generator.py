@@ -86,14 +86,16 @@ def test_detailed_diff_formatting(sample_result):
 def test_color_highlighting(sample_result):
     """Test that color codes are properly applied"""
     result = ComparisonResult(
-        unique_to_source1=pd.DataFrame([
+        unique_to_source1=pl.DataFrame([
             {'id': '1', 'name': 'Alice', 'value': '100'}
         ]),
-        unique_to_source2=pd.DataFrame([]),
-        differences=pd.DataFrame([{
-            'id': {'id': '2'},
-            'source1_value': {'id': '2', 'name': 'Bob', 'value': '200'},
-            'source2_value': {'id': '2', 'name': 'Bob', 'value': '250'}
+        unique_to_source2=pl.DataFrame(),
+        differences=pl.DataFrame([{
+            'id': '2',
+            'name_source1': 'Bob',
+            'name_source2': 'Bob',
+            'value_source1': '200',
+            'value_source2': '250'
         }]),
         column_stats={'name': 1.0, 'value': 0.0}
     )
