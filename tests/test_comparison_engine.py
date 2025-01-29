@@ -72,10 +72,10 @@ def test_basic_comparison(basic_data):
     
     # Check differences
     assert len(result.differences) == 1  # Bob's value changed
-    diff_row = result.differences.row(0)
-    assert diff_row['id']['id'] == '2'
-    assert diff_row['source1_value']['value'] == '200'
-    assert diff_row['source2_value']['value'] == '250'
+    diff_row = result.differences.row(0, named=True)
+    assert diff_row['id'] == '2'
+    assert diff_row['value_source1'] == '200'
+    assert diff_row['value_source2'] == '250'
     
     # Check column stats
     assert result.column_stats['name'] == 1.0  # All names match

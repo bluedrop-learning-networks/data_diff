@@ -103,15 +103,13 @@ class ComparisonEngine:
                     source2_values = {col: row[f"{col}_source2"]}
                     
                     differences.append({
-                        'id': id_values,
-                        'source1_value': source1_values,
-                        'source2_value': source2_values
+                        **id_values,
+                        **{f"{k}_source1": v for k, v in source1_values.items()},
+                        **{f"{k}_source2": v for k, v in source2_values.items()}
                     })
 
         # Create differences DataFrame
-        differences_df = pl.DataFrame(differences) if differences else pl.DataFrame(
-            schema={'id': pl.Struct, 'source1_value': pl.Struct, 'source2_value': pl.Struct}
-        )
+        differences_df = pl.DataFrame(differences) if differences else pl.DataFrame()
 
         return ComparisonResult(
             unique_to_source1=unique_to_source1.select([c for c in self.source1_data.columns]),
