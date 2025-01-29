@@ -103,11 +103,25 @@ class ComparisonEngine:
         }
 
         # Find differences
+        diff_conditions = []
+        for col in columns_to_compare:
+            expr1 = pl.col(col)
+            expr2 = pl.col(f"{col}_source2")
+            
+            if self.config.trim_strings:
+                expr1 = expr1.str.strip_chars()
+                expr2 = expr2.str.strip_chars()
+            
+            if not self.config.case_sensitive:
+                expr1 = expr1.str.to_lowercase()
+                expr2 = expr2.str.to_lowercase()
+            
+            diff_conditions.append(
+                ~((expr1 == expr2) | (expr1.is_null() & expr2.is_null()))
+            )
+            
         diff_rows = common_rows.filter(
-            ~pl.any_horizontal([
-                self._compare_columns(col)
-                for col in columns_to_compare
-            ])
+            pl.any_horizontal(diff_conditions)
         )
 
         # Process differences in batch
