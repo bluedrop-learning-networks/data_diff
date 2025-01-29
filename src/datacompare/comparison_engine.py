@@ -47,7 +47,7 @@ class ComparisonEngine:
         merged_df = self.source1_data.join(
             source2_renamed,
             on=join_on,
-            how="outer",
+            how="full",
             suffix="_source2"
         )
 
@@ -78,8 +78,8 @@ class ComparisonEngine:
             expr2 = pl.col(f"{col}_source2").cast(pl.Utf8)
 
             if self.config.trim_strings:
-                expr1 = expr1.str.strip()
-                expr2 = expr2.str.strip()
+                expr1 = expr1.str.strip_chars()
+                expr2 = expr2.str.strip_chars()
 
             if not self.config.case_sensitive:
                 expr1 = expr1.str.to_lowercase()

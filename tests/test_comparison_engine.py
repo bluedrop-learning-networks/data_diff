@@ -72,7 +72,7 @@ def test_basic_comparison(basic_data):
     
     # Check differences
     assert len(result.differences) == 1  # Bob's value changed
-    diff_row = result.differences.iloc[0]
+    diff_row = result.differences.row(0)
     assert diff_row['id']['id'] == '2'
     assert diff_row['source1_value']['value'] == '200'
     assert diff_row['source2_value']['value'] == '250'
@@ -168,9 +168,9 @@ def test_large_dataset_performance(large_data):
     result = engine.compare()
     
     # Basic sanity checks
-    assert not result.unique_to_source1.empty
-    assert not result.unique_to_source2.empty
-    assert not result.differences.empty
+    assert result.unique_to_source1.height > 0
+    assert result.unique_to_source2.height > 0
+    assert result.differences.height > 0
     assert all(0 <= v <= 1 for v in result.column_stats.values())
 
 def test_missing_values():
@@ -230,9 +230,9 @@ def test_chunked_reading(tmp_path):
     
     # Verify results
     for result in all_results:
-        assert result.unique_to_source1.empty
-        assert result.unique_to_source2.empty
-        assert result.differences.empty
+        assert result.unique_to_source1.height == 0
+        assert result.unique_to_source2.height == 0
+        assert result.differences.height == 0
         assert result.column_stats['value'] == 1.0
 
 def test_different_column_names():
