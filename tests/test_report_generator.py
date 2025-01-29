@@ -162,12 +162,14 @@ def test_text_wrapping():
 def test_console_output_formatting():
     """Test detailed console output formatting"""
     result = ComparisonResult(
-        unique_to_source1=pd.DataFrame([{'id': '1', 'name': 'Alice'}]),
-        unique_to_source2=pd.DataFrame([{'id': '2', 'name': 'Bob'}]),
-        differences=pd.DataFrame([{
-            'id': {'id': '3'},
-            'source1_value': {'id': '3', 'name': 'Charlie', 'value': '100'},
-            'source2_value': {'id': '3', 'name': 'Charlie', 'value': '200'}
+        unique_to_source1=pl.DataFrame([{'id': '1', 'name': 'Alice'}]),
+        unique_to_source2=pl.DataFrame([{'id': '2', 'name': 'Bob'}]),
+        differences=pl.DataFrame([{
+            'id': '3',
+            'name_source1': 'Charlie',
+            'name_source2': 'Charlie',
+            'value_source1': '100',
+            'value_source2': '200'
         }]),
         column_stats={'name': 1.0, 'value': 0.5}
     )
@@ -199,12 +201,14 @@ def test_console_output_formatting():
 def test_csv_output_structure(tmp_path):
     """Test CSV output structure and content"""
     result = ComparisonResult(
-        unique_to_source1=pd.DataFrame([{'id': '1', 'name': 'Alice'}]),
-        unique_to_source2=pd.DataFrame([{'id': '2', 'name': 'Bob'}]),
-        differences=pd.DataFrame([{
-            'id': {'id': '3'},
-            'source1_value': {'id': '3', 'name': 'Charlie', 'value': '100'},
-            'source2_value': {'id': '3', 'name': 'Charlie', 'value': '200'}
+        unique_to_source1=pl.DataFrame([{'id': '1', 'name': 'Alice'}]),
+        unique_to_source2=pl.DataFrame([{'id': '2', 'name': 'Bob'}]),
+        differences=pl.DataFrame([{
+            'id': '3',
+            'name_source1': 'Charlie',
+            'name_source2': 'Charlie',
+            'value_source1': '100',
+            'value_source2': '200'
         }]),
         column_stats={'name': 1.0, 'value': 0.5}
     )
@@ -238,12 +242,14 @@ def test_csv_output_structure(tmp_path):
 def test_json_output_structure(tmp_path):
     """Test JSON output structure and content"""
     result = ComparisonResult(
-        unique_to_source1=pd.DataFrame([{'id': '1', 'name': 'Alice'}]),
-        unique_to_source2=pd.DataFrame([{'id': '2', 'name': 'Bob'}]),
-        differences=pd.DataFrame([{
-            'id': {'id': '3'},
-            'source1_value': {'id': '3', 'name': 'Charlie', 'value': '100'},
-            'source2_value': {'id': '3', 'name': 'Charlie', 'value': '200'}
+        unique_to_source1=pl.DataFrame([{'id': '1', 'name': 'Alice'}]),
+        unique_to_source2=pl.DataFrame([{'id': '2', 'name': 'Bob'}]),
+        differences=pl.DataFrame([{
+            'id': '3',
+            'name_source1': 'Charlie',
+            'name_source2': 'Charlie',
+            'value_source1': '100',
+            'value_source2': '200'
         }]),
         column_stats={'name': 1.0, 'value': 0.5}
     )
@@ -282,9 +288,9 @@ def test_json_output_structure(tmp_path):
 def test_empty_report_handling():
     """Test handling of empty comparison results"""
     result = ComparisonResult(
-        unique_to_source1=pd.DataFrame(columns=['id', 'name']),
-        unique_to_source2=pd.DataFrame(columns=['id', 'name']),
-        differences=pd.DataFrame(columns=['id', 'source1_value', 'source2_value']),
+        unique_to_source1=pl.DataFrame(schema={'id': pl.Utf8, 'name': pl.Utf8}),
+        unique_to_source2=pl.DataFrame(schema={'id': pl.Utf8, 'name': pl.Utf8}),
+        differences=pl.DataFrame(),
         column_stats={}
     )
     
