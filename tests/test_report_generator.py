@@ -1,7 +1,7 @@
 import pytest
 import json
 import re
-import pandas as pd
+import polars as pl
 from colorama import Fore, Style
 from datacompare.comparison_engine import ComparisonResult
 from datacompare.report_generator import ReportGenerator
@@ -14,12 +14,12 @@ def strip_ansi(text: str) -> str:
 @pytest.fixture
 def sample_result():
     return ComparisonResult(
-        unique_to_source1=pd.DataFrame([{'id': 1}, {'id': 2}]),
-        unique_to_source2=pd.DataFrame([{'id': 3}]),
-        differences=pd.DataFrame([{
-            'id': {'id': 4},  # Dictionary structure for id
-            'source1_value': {'id': 4, 'value': 'A'},
-            'source2_value': {'id': 4, 'value': 'B'}
+        unique_to_source1=pl.DataFrame([{'id': 1}, {'id': 2}]),
+        unique_to_source2=pl.DataFrame([{'id': 3}]),
+        differences=pl.DataFrame([{
+            'id': 4,
+            'value_source1': 'A',
+            'value_source2': 'B'
         }]),
         column_stats={'name': 0.75, 'value': 0.90}
     )
