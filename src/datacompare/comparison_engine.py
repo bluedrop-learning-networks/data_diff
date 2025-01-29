@@ -39,9 +39,12 @@ class ComparisonEngine:
         # Prepare data for comparison by aligning columns
         source2_renamed = self.source2_data.rename(columns={v: k for k, v in self.column_mapping.items()})
         
+        # Prepare ID columns - they should not get suffixes
+        id_mapping = {id_col: id_col for id_col in self.id_columns}
+        
         # Create merged dataframe for comparison using ID columns
         merged_df = pd.merge(
-            self.source1_data, 
+            self.source1_data,
             source2_renamed,
             on=self.id_columns,
             how='outer',
@@ -88,10 +91,19 @@ class ComparisonEngine:
                 diff_rows = common_rows[diff_mask]
                 for _, row in diff_rows.iterrows():
                     id_values = {id_col: row[id_col] for id_col in self.id_columns}
+                    # Create clean column names by removing suffixes
+                    source1_values = {
+                        col.replace('_source1', ''): val 
+                        for col, val in row.filter(like='_source1').to_dict().items()
+                    }
+                    source2_values = {
+                        col.replace('_source2', ''): val
+                        for col, val in row.filter(like='_source2').to_dict().items()
+                    }
                     differences.append({
                         'id': id_values,
-                        'source1_value': row.filter(like='_source1').to_dict(),
-                        'source2_value': row.filter(like='_source2').to_dict()
+                        'source1_value': source1_values,
+                        'source2_value': source2_values
                     })
         
         # Calculate column statistics using vectorized operations
