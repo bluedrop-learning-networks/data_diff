@@ -88,20 +88,20 @@ class ReportGenerator:
         # Show removed rows (unique to source 1)
         if self.result.unique_to_source1.height > 0:
             output.extend(['', f"{Style.BRIGHT}Rows Removed (Unique to Source 1):{Style.RESET_ALL}"])
-            for _, row in self.result.unique_to_source1.iterrows():
+            for row in self.result.unique_to_source1.iter_rows(named=True):
                 output.append(f"{Fore.RED}- {dict(row)}{Style.RESET_ALL}")
 
         # Show added rows (unique to source 2)
         if self.result.unique_to_source2.height > 0:
             output.extend(['', f"{Style.BRIGHT}Rows Added (Unique to Source 2):{Style.RESET_ALL}"])
-            for _, row in self.result.unique_to_source2.iterrows():
+            for row in self.result.unique_to_source2.iter_rows(named=True):
                 output.append(f"{Fore.GREEN}+ {dict(row)}{Style.RESET_ALL}")
 
         # Show modified rows
         if self.result.differences.height > 0:
             output.extend(['', f"{Style.BRIGHT}Modified Rows:{Style.RESET_ALL}"])
             
-            for _, row in self.result.differences.iterrows():
+            for row in self.result.differences.iter_rows(named=True):
                 id_str = ' '.join(f"{k}={v}" for k, v in row['id'].items())
                 output.append(f"\n{Style.BRIGHT}ID: {id_str}{Style.RESET_ALL}")
                 
@@ -232,7 +232,7 @@ class ReportGenerator:
             writer.writerow([])
             
             # Write differences if any exist
-            if not self.result.differences.empty:
+            if self.result.differences.height > 0:
                 writer.writerow(['=== Detailed Differences ==='])
                 writer.writerow([])
                 

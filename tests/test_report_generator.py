@@ -53,16 +53,18 @@ def test_detailed_diff_formatting(sample_result):
     """Test the formatting of detailed differences"""
     # Create a result with specific test data
     result = ComparisonResult(
-        unique_to_source1=pd.DataFrame([
+        unique_to_source1=pl.DataFrame([
             {'id': '1', 'name': 'Alice', 'value': '100'}
         ]),
-        unique_to_source2=pd.DataFrame([
+        unique_to_source2=pl.DataFrame([
             {'id': '3', 'name': 'Charlie', 'value': '300'}
         ]),
-        differences=pd.DataFrame([{
-            'id': {'id': '2'},
-            'source1_value': {'id': '2', 'name': 'Bob', 'value': '200'},
-            'source2_value': {'id': '2', 'name': 'Bob', 'value': '250'}
+        differences=pl.DataFrame([{
+            'id': '2',
+            'name_source1': 'Bob',
+            'name_source2': 'Bob',
+            'value_source1': '200',
+            'value_source2': '250'
         }]),
         column_stats={'name': 0.75, 'value': 0.90}
     )
@@ -108,9 +110,9 @@ def test_color_highlighting(sample_result):
 def test_empty_differences():
     """Test output when there are no differences"""
     result = ComparisonResult(
-        unique_to_source1=pd.DataFrame(columns=['id', 'name']),
-        unique_to_source2=pd.DataFrame(columns=['id', 'name']),
-        differences=pd.DataFrame(columns=['id', 'source1_value', 'source2_value']),
+        unique_to_source1=pl.DataFrame(schema={'id': pl.Utf8, 'name': pl.Utf8}),
+        unique_to_source2=pl.DataFrame(schema={'id': pl.Utf8, 'name': pl.Utf8}),
+        differences=pl.DataFrame(),
         column_stats={'name': 1.0}
     )
     
@@ -125,12 +127,16 @@ def test_empty_differences():
 def test_multicolumn_differences():
     """Test handling of rows with multiple column differences"""
     result = ComparisonResult(
-        unique_to_source1=pd.DataFrame(),
-        unique_to_source2=pd.DataFrame(),
-        differences=pd.DataFrame([{
-            'id': {'id': '1'},
-            'source1_value': {'id': '1', 'name': 'Alice', 'age': '30', 'city': 'NY'},
-            'source2_value': {'id': '1', 'name': 'Alice', 'age': '31', 'city': 'LA'}
+        unique_to_source1=pl.DataFrame(),
+        unique_to_source2=pl.DataFrame(),
+        differences=pl.DataFrame([{
+            'id': '1',
+            'name_source1': 'Alice',
+            'name_source2': 'Alice',
+            'age_source1': '30',
+            'age_source2': '31',
+            'city_source1': 'NY',
+            'city_source2': 'LA'
         }]),
         column_stats={'name': 1.0, 'age': 0.0, 'city': 0.0}
     )
