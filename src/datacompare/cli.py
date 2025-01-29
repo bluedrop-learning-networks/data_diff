@@ -145,7 +145,10 @@ def main():
             generator.to_csv(args.output_file)
 
     except Exception as e:
+        import traceback
         print(f"Error: {str(e)}", file=sys.stderr)
+        print("\nTraceback:", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
         sys.exit(1)
 
 
