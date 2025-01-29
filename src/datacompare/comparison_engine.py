@@ -111,7 +111,21 @@ class ComparisonEngine:
             col_source1 = col if col in self.id_columns else f"{col}_source1"
             col_source2 = col if col in self.id_columns else f"{col}_source2"
             
-            matches = (common_rows[col_source1].astype(str) == common_rows[col_source2].astype(str))
+            s1_values = common_rows[col_source1].astype(str)
+            s2_values = common_rows[col_source2].astype(str)
+            
+            if self.config.trim_strings:
+                s1_values = s1_values.str.strip()
+                s2_values = s2_values.str.strip()
+                
+            if not self.config.case_sensitive:
+                s1_values = s1_values.str.lower()
+                s2_values = s2_values.str.lower()
+            
+            # Handle NA values specially
+            na_match = pd.isna(common_rows[col_source1]) & pd.isna(common_rows[col_source2])
+            value_match = (s1_values == s2_values)
+            matches = na_match | value_match
             column_stats[col] = matches.mean()
 
         return ComparisonResult(
