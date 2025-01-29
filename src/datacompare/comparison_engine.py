@@ -162,7 +162,7 @@ class ComparisonEngine:
                     *[pl.col(f"{col}_source2") for col in columns_to_compare],
                 ]
             )
-            if not diff_rows.is_empty()
+            if diff_rows.height > 0
             else pl.DataFrame()
         )
 
