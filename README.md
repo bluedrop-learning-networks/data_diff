@@ -2,25 +2,9 @@
 
 A command-line tool for comparing two data sources (CSV/JSONL) and identifying differences.
 
-## Installation
+## Dependencies
 
-1. Clone the repository
-2. Create and activate virtual environment:
-```bash
-uv venv
-source .venv/bin/activate  # Unix/Mac
-# OR
-.\.venv\Scripts\activate  # Windows
-```
-
-3. Install dependencies:
-```bash
-# Install main dependencies
-uv pip install -e .
-
-# Install development dependencies
-uv pip install -e ".[dev]"
-```
+ - uv (https://docs.astral.sh/uv/getting-started/installation/)
 
 ## Usage
 
