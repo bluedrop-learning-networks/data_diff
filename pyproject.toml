@@ -14,7 +14,7 @@ dev = [
 ]
 
 [project.scripts]
-data_diff = "src.datacompare.cli:main"
+data_diff = "src.data_diff.cli:main"
 
 [build-system]
 requires = ["hatchling"]
