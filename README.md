@@ -24,20 +24,52 @@ uv pip install -e ".[dev]"
 
 ## Usage
 
-Basic comparison:
+Compare two data files (supports CSV and JSONL formats):
+
 ```bash
-uv run data_diff file1.csv file2.jsonl
+uv run data_diff source.csv target.jsonl
 ```
 
-With mapping configuration:
+### Options
+
+- Compare specific columns using a mapping file:
 ```bash
-uv run data_diff --mapping mapping.json file1.csv file2.csv
+uv run data_diff --mapping column-map.json source.csv target.csv
 ```
 
-For more options:
+- Specify ID columns for matching records:
+```bash
+uv run data_diff --id-columns id,email source.csv target.csv
+```
+
+- Output differences to a file:
+```bash
+uv run data_diff --output diff-report.txt source.csv target.csv
+```
+
+- Show all available options:
 ```bash
 uv run data_diff --help
 ```
+
+### Column Mapping Format
+
+The mapping file (JSON) specifies how columns correspond between files:
+
+```json
+{
+    "source_column1": "target_column1",
+    "source_column2": "target_column2"
+}
+```
+
+### Output
+
+The tool will show:
+- Added records (in target but not source)
+- Removed records (in source but not target)
+- Modified records (matching IDs but different values)
+- Summary statistics of differences found
 
 ## Development
 
