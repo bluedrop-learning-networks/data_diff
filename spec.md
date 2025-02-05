@@ -1,4 +1,4 @@
-**Product Specification: datacompare CLI Tool**
+**Specification: data_diff CLI Tool**
 
 **2. Objective:**
 
@@ -109,8 +109,9 @@ datacompare file1.csv file2.csv --output-format json --output-file results.json
 **9. Technology Stack (Suggestions):**
 
 *   **Programming Language:** Python (due to its rich data processing libraries).
-*   **Libraries:**
+*   **Potential Libraries:**
     *   `pandas` (for data manipulation and analysis).
+    *   `polars` (pandas alternative).
     *   `json` (for handling JSONL).
     *   `csv` (for handling CSV).
     *   `difflib` (for generating diffs).
