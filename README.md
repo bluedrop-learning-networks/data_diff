@@ -1,4 +1,4 @@
-# datacompare
+# data_diff
 
 A command-line tool for comparing two data sources (CSV/JSONL) and identifying differences.
 
@@ -26,17 +26,17 @@ uv pip install -e ".[dev]"
 
 Basic comparison:
 ```bash
-python -m datacompare file1.csv file2.jsonl
+uv run data_diff file1.csv file2.jsonl
 ```
 
 With mapping configuration:
 ```bash
-python -m datacompare --mapping mapping.json file1.csv file2.csv
+uv run data_diff --mapping mapping.json file1.csv file2.csv
 ```
 
 For more options:
 ```bash
-python -m datacompare --help
+uv run data_diff --help
 ```
 
 ## Development

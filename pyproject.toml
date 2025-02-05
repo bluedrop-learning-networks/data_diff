@@ -1,5 +1,5 @@
 [project]
-name = "datacompare"
+name = "data_diff"
 version = "0.1.0"
 description = "A command-line tool for comparing two data sources (CSV/JSONL) and identifying differences"
 requires-python = ">=3.11"
@@ -14,7 +14,7 @@ dev = [
 ]
 
 [project.scripts]
-datacompare = "src.datacompare.cli:main"
+data_diff = "src.datacompare.cli:main"
 
 [build-system]
 requires = ["hatchling"]
