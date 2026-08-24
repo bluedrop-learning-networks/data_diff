@@ -11,6 +11,22 @@ from .comparison_engine import ComparisonEngine, ComparisonConfig
 from .report_generator import ReportGenerator
 
 
+class SingleUseArgument(argparse.Action):
+    """Reject a flag passed more than once.
+
+    argparse's default is to keep only the last occurrence, which silently
+    changes which columns are used without any hint in the output.
+    """
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        if getattr(namespace, self.dest) is not None:
+            parser.error(
+                f"{option_string} was given more than once; pass a single "
+                "comma-separated list instead of repeating the flag"
+            )
+        setattr(namespace, self.dest, values)
+
+
 def parse_args(args=None):
     parser = argparse.ArgumentParser(
         description="Compare two data sources and identify differences"
@@ -18,9 +34,15 @@ def parse_args(args=None):
     parser.add_argument("source1", help="Path to first data source")
     parser.add_argument("source2", help="Path to second data source")
     parser.add_argument("--mapping", help="Path to mapping configuration file")
-    parser.add_argument("--id-columns", help="Comma-separated list of ID columns")
     parser.add_argument(
-        "--compare-columns", help="Comma-separated list of columns to compare"
+        "--id-columns",
+        action=SingleUseArgument,
+        help="Comma-separated list of ID columns",
+    )
+    parser.add_argument(
+        "--compare-columns",
+        action=SingleUseArgument,
+        help="Comma-separated list of columns to compare",
     )
     parser.add_argument(
         "--delimiter", default=",", help="Delimiter for CSV files (default: ,)"
