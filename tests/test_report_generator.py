@@ -535,3 +535,13 @@ def test_clean_comparison_has_no_trust_warnings():
     assert generator.trust_warnings() == []
     assert generator.has_differences() is False
     assert 'No trust warnings' in strip_ansi(generator.to_console(show_diff=False))
+
+
+def test_exit_codes_are_on_by_default_and_can_be_opted_out():
+    """The untrustworthy state is the one that otherwise reads as success, so it
+    must not depend on the caller remembering a flag."""
+    from src.data_diff.cli import parse_args
+
+    assert parse_args(["a.csv", "b.csv"]).exit_code is True
+    assert parse_args(["a.csv", "b.csv", "--exit-code"]).exit_code is True
+    assert parse_args(["a.csv", "b.csv", "--no-exit-code"]).exit_code is False

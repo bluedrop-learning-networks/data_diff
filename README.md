@@ -169,3 +169,17 @@ Run tests:
 ```bash
 uv run --extra dev pytest
 ```
+
+## Exit codes
+
+Exit codes are on by default. `--no-exit-code` restores the old always-zero behaviour.
+
+| code | meaning |
+|---|---|
+| 0 | no differences |
+| 1 | the run failed (bad arguments, unreadable input, `--strict-ids` violation) |
+| 2 | differences found |
+| 3 | **the comparison cannot be trusted** — a non-unique key, a column blank on every row, or rows excluded from the column statistics because their key did not pair |
+
+Code 3 is the one worth wiring into a check. It is the state that otherwise reads as
+success, and it is how this tool ends up quoted as evidence that nothing was lost.

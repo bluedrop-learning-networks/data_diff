@@ -80,8 +80,14 @@ def duplicate_in_source2(tmp_path):
 
 
 def run_cli(monkeypatch, argv):
+    """Invoke the CLI and return its exit code. Exit codes are the default now, so
+    main() always raises SystemExit; returning the code keeps every assertion explicit."""
     monkeypatch.setattr(sys, "argv", ["data_diff", *argv])
-    main()
+    try:
+        main()
+    except SystemExit as exc:
+        return exc.code if exc.code is not None else 0
+    return 0
 
 
 def test_duplicate_ids_in_source2_are_reported(
@@ -111,18 +117,17 @@ def test_unique_ids_on_both_sides_report_as_unique(monkeypatch, capsys, tmp_path
 
 def test_strict_ids_exits_non_zero(monkeypatch, capsys, duplicate_in_source2):
     source1, source2 = duplicate_in_source2
-    with pytest.raises(SystemExit) as exc:
-        run_cli(
-            monkeypatch,
-            [
-                str(source1),
-                str(source2),
-                "--id-columns=id",
-                "--no-diff",
-                "--strict-ids",
-            ],
-        )
-    assert exc.value.code == 1
+    code = run_cli(
+        monkeypatch,
+        [
+            str(source1),
+            str(source2),
+            "--id-columns=id",
+            "--no-diff",
+            "--strict-ids",
+        ],
+    )
+    assert code == 1
 
 
 def test_duplicate_ids_are_not_fatal_by_default(
@@ -235,27 +240,26 @@ def test_exact_key_must_be_unique(monkeypatch, capsys, tmp_path):
     source2 = tmp_path / "s2.csv"
     source2.write_text("ident,amount\nR1,10\nR1,20\n")
 
-    with pytest.raises(SystemExit) as exc:
-        run_cli(
-            monkeypatch,
-            [
-                str(source1),
-                str(source2),
-                "--left-key",
-                "regId",
-                "--right-key",
-                "ident",
-                "--no-diff",
-            ],
-        )
-    assert exc.value.code == 1
+    code = run_cli(
+        monkeypatch,
+        [
+            str(source1),
+            str(source2),
+            "--left-key",
+            "regId",
+            "--right-key",
+            "ident",
+            "--no-diff",
+        ],
+    )
+    assert code == 1
     assert "must be unique on both sides" in capsys.readouterr().err
 
 
 def test_exact_key_flags_must_be_paired(monkeypatch, capsys, differing_key_names):
     source1, source2 = differing_key_names
-    with pytest.raises(SystemExit):
-        run_cli(
+    # non-zero exit: the run did not complete cleanly
+    assert run_cli(
             monkeypatch,
             [str(source1), str(source2), "--left-key", "registrationId"],
         )
@@ -264,8 +268,8 @@ def test_exact_key_flags_must_be_paired(monkeypatch, capsys, differing_key_names
 
 def test_exact_key_counts_must_match(monkeypatch, capsys, differing_key_names):
     source1, source2 = differing_key_names
-    with pytest.raises(SystemExit):
-        run_cli(
+    # non-zero exit: the run did not complete cleanly
+    assert run_cli(
             monkeypatch,
             [
                 str(source1),
@@ -283,8 +287,8 @@ def test_exact_key_counts_must_match(monkeypatch, capsys, differing_key_names):
 
 def test_exact_key_rejects_id_columns(monkeypatch, capsys, differing_key_names):
     source1, source2 = differing_key_names
-    with pytest.raises(SystemExit):
-        run_cli(
+    # non-zero exit: the run did not complete cleanly
+    assert run_cli(
             monkeypatch,
             [
                 str(source1),
@@ -301,8 +305,8 @@ def test_exact_key_rejects_id_columns(monkeypatch, capsys, differing_key_names):
 
 def test_exact_key_missing_column(monkeypatch, capsys, differing_key_names):
     source1, source2 = differing_key_names
-    with pytest.raises(SystemExit):
-        run_cli(
+    # non-zero exit: the run did not complete cleanly
+    assert run_cli(
             monkeypatch,
             [
                 str(source1),
@@ -327,18 +331,16 @@ def test_exit_code_zero_when_identical(monkeypatch, tmp_path):
     source1 = _write(tmp_path, "s1.csv", rows)
     source2 = _write(tmp_path, "s2.csv", rows)
 
-    with pytest.raises(SystemExit) as exc:
-        run_cli(monkeypatch, [source1, source2, "--id-columns=id", "--exit-code"])
-    assert exc.value.code == EXIT_NO_DIFFERENCES
+    code = run_cli(monkeypatch, [source1, source2, "--id-columns=id", "--exit-code"])
+    assert code == EXIT_NO_DIFFERENCES
 
 
 def test_exit_code_signals_differences(monkeypatch, tmp_path):
     source1 = _write(tmp_path, "s1.csv", "id,value\n1,a\n2,b\n")
     source2 = _write(tmp_path, "s2.csv", "id,value\n1,a\n2,CHANGED\n")
 
-    with pytest.raises(SystemExit) as exc:
-        run_cli(monkeypatch, [source1, source2, "--id-columns=id", "--exit-code"])
-    assert exc.value.code == EXIT_DIFFERENCES
+    code = run_cli(monkeypatch, [source1, source2, "--id-columns=id", "--exit-code"])
+    assert code == EXIT_DIFFERENCES
 
 
 def test_exit_code_signals_an_untrustworthy_comparison(monkeypatch, tmp_path):
@@ -346,9 +348,8 @@ def test_exit_code_signals_an_untrustworthy_comparison(monkeypatch, tmp_path):
     source1 = _write(tmp_path, "s1.csv", "id,value\n1,a\n2,b\n")
     source2 = _write(tmp_path, "s2.csv", "id,value\n1,a\n99,b\n")
 
-    with pytest.raises(SystemExit) as exc:
-        run_cli(monkeypatch, [source1, source2, "--id-columns=id", "--exit-code"])
-    assert exc.value.code == EXIT_UNTRUSTED
+    code = run_cli(monkeypatch, [source1, source2, "--id-columns=id", "--exit-code"])
+    assert code == EXIT_UNTRUSTED
 
 
 def test_exit_code_signals_a_vacuous_column(monkeypatch, tmp_path):
@@ -356,9 +357,8 @@ def test_exit_code_signals_a_vacuous_column(monkeypatch, tmp_path):
     source1 = _write(tmp_path, "s1.csv", rows)
     source2 = _write(tmp_path, "s2.csv", rows)
 
-    with pytest.raises(SystemExit) as exc:
-        run_cli(monkeypatch, [source1, source2, "--id-columns=id", "--exit-code"])
-    assert exc.value.code == EXIT_UNTRUSTED
+    code = run_cli(monkeypatch, [source1, source2, "--id-columns=id", "--exit-code"])
+    assert code == EXIT_UNTRUSTED
 
 
 def test_exit_code_signals_a_non_unique_key(monkeypatch, tmp_path):
@@ -366,17 +366,24 @@ def test_exit_code_signals_a_non_unique_key(monkeypatch, tmp_path):
     source1 = _write(tmp_path, "s1.csv", rows)
     source2 = _write(tmp_path, "s2.csv", rows)
 
-    with pytest.raises(SystemExit) as exc:
-        run_cli(monkeypatch, [source1, source2, "--id-columns=id", "--exit-code"])
-    assert exc.value.code == EXIT_UNTRUSTED
+    code = run_cli(monkeypatch, [source1, source2, "--id-columns=id", "--exit-code"])
+    assert code == EXIT_UNTRUSTED
 
 
-def test_exit_code_is_opt_in(monkeypatch, tmp_path):
-    """Without the flag the process still exits 0 on differences"""
+def test_exit_codes_are_on_by_default(monkeypatch, tmp_path):
+    """Differences exit 2 without asking for it, and --no-exit-code restores 0.
+
+    Opt-in was the wrong default: the state this distinguishes is the one that
+    otherwise reads as success, so it must not depend on the caller remembering a flag.
+    """
     source1 = _write(tmp_path, "s1.csv", "id,value\n1,a\n")
     source2 = _write(tmp_path, "s2.csv", "id,value\n1,CHANGED\n")
+    argv = [source1, source2, "--id-columns=id", "--no-diff"]
 
-    run_cli(monkeypatch, [source1, source2, "--id-columns=id", "--no-diff"])
+    # non-zero exit: the run did not complete cleanly
+    assert run_cli(monkeypatch, argv) == 2
+    # non-zero exit: the run did not complete cleanly
+    assert run_cli(monkeypatch, [*argv, "--no-exit-code"]) == 0
 
 
 def test_json_output_with_a_non_id_key_name(monkeypatch, capsys, tmp_path):

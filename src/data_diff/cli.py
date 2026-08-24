@@ -83,11 +83,19 @@ def parse_args(args=None):
     )
     parser.add_argument(
         "--exit-code",
+        dest="exit_code",
         action="store_true",
-        help=f"Exit {EXIT_DIFFERENCES} when differences are found and "
-        f"{EXIT_UNTRUSTED} when the comparison cannot be trusted (non-unique "
-        f"key, vacuous column, rows excluded from the column statistics). "
-        f"Without this the process exits 0 in all three cases",
+        default=True,
+        help=argparse.SUPPRESS,  # now the default; kept so existing callers still parse
+    )
+    parser.add_argument(
+        "--no-exit-code",
+        dest="exit_code",
+        action="store_false",
+        help=f"Always exit 0. By default the process exits {EXIT_DIFFERENCES} when "
+        f"differences are found and {EXIT_UNTRUSTED} when the comparison cannot be "
+        f"trusted (non-unique key, vacuous column, rows excluded from the column "
+        f"statistics) — that last state is the one that otherwise reads as success",
     )
     parser.add_argument(
         "--strict-ids",
