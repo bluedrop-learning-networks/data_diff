@@ -282,3 +282,50 @@ def test_mapped_id_columns():
     assert len(result.unique_to_source2) == 0
     assert len(result.differences) == 0
     assert result.column_stats['name'] == 1.0
+
+def test_stats_scope_counts(basic_data):
+    """Column stats cover only the paired rows, and the result says how many"""
+    source1, source2 = basic_data
+    engine = ComparisonEngine(
+        source1_data=source1,
+        source2_data=source2,
+        id_columns=['id'],
+        column_mapping={'name': 'name', 'value': 'value'}
+    )
+
+    result = engine.compare()
+
+    # id 1 and 2 pair up; id 3 and id 4 are unique to one side each
+    assert result.common_row_count == 2
+    assert result.joined_row_count == 4
+
+def test_stats_exclude_rows_whose_key_moved():
+    """A value lost on a moved key must not read as a clean comparison
+
+    The column stats can only see paired rows, so they report a perfect
+    match here. The row accounting is the only thing that tells the reader
+    the stats covered 1 of 3 rows.
+    """
+    source1 = pl.DataFrame({
+        'id': ['1', '2'],
+        'name': ['Alice', 'Bob'],
+        'value': ['100', '200']
+    })
+    source2 = pl.DataFrame({
+        'id': ['1', '99'],
+        'name': ['Alice', 'Bob'],
+        'value': ['100', '']  # same person, moved key, value dropped
+    })
+
+    engine = ComparisonEngine(
+        source1_data=source1,
+        source2_data=source2,
+        id_columns=['id'],
+        column_mapping={'name': 'name', 'value': 'value'}
+    )
+    result = engine.compare()
+
+    assert result.column_stats['value'] == 1.0
+    assert len(result.differences) == 0
+    assert result.common_row_count == 1
+    assert result.joined_row_count == 3

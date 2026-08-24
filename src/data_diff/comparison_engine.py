@@ -21,6 +21,11 @@ class ComparisonResult:
     unique_to_source2: pl.DataFrame
     differences: pl.DataFrame
     column_stats: Dict[str, float]
+    # Rows the column stats were computed over, and rows the outer join
+    # produced in total. column_stats only sees rows present on both sides,
+    # so these are needed to tell "no differences" from "nothing to compare".
+    common_row_count: Optional[int] = None
+    joined_row_count: Optional[int] = None
 
 
 class ComparisonEngine:
@@ -171,4 +176,6 @@ class ComparisonEngine:
             unique_to_source2=unique_to_source2,
             differences=differences_df,
             column_stats=column_stats,
+            common_row_count=common_rows.height,
+            joined_row_count=merged_df.height,
         )

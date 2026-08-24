@@ -319,3 +319,50 @@ def test_csv_output(sample_result, tmp_path):
         content = f.read()
         assert 'Row Counts' in content
         assert 'Column Statistics' in content
+
+@pytest.fixture
+def scoped_result():
+    """A result where the column stats cover only some of the joined rows"""
+    return ComparisonResult(
+        unique_to_source1=pl.DataFrame([{'id': '3', 'value': '300'}]),
+        unique_to_source2=pl.DataFrame([{'id': '4', 'value': '400'}]),
+        differences=pl.DataFrame(),
+        column_stats={'value': 1.0},
+        common_row_count=2,
+        joined_row_count=4,
+    )
+
+def test_summary_reports_stats_scope(scoped_result):
+    summary = ReportGenerator(scoped_result).generate_summary()
+
+    assert summary['stats_scope']['rows_compared'] == 2
+    assert summary['stats_scope']['joined_rows'] == 4
+    assert summary['stats_scope']['rows_excluded_as_unique'] == 2
+
+def test_console_states_stats_scope(scoped_result):
+    output = strip_ansi(ReportGenerator(scoped_result).to_console(show_diff=False))
+
+    assert 'Column statistics computed over 2 of 4 joined rows' in output
+    assert '2 excluded as unique to one side' in output
+
+def test_json_includes_stats_scope(scoped_result):
+    report = json.loads(ReportGenerator(scoped_result).to_json())
+
+    assert report['summary']['stats_scope']['rows_compared'] == 2
+    assert report['summary']['stats_scope']['rows_excluded_as_unique'] == 2
+
+def test_csv_includes_stats_scope(scoped_result, tmp_path):
+    out = tmp_path / 'report.csv'
+    ReportGenerator(scoped_result).to_csv(str(out))
+    content = out.read_text()
+
+    assert 'rows_compared' in content
+    assert 'rows_excluded_as_unique' in content
+
+def test_stats_scope_omitted_when_unknown(sample_result):
+    """Hand-built results without the counts must still render"""
+    summary = ReportGenerator(sample_result).generate_summary()
+    assert 'stats_scope' not in summary
+
+    output = strip_ansi(ReportGenerator(sample_result).to_console(show_diff=False))
+    assert 'Column statistics computed over' not in output

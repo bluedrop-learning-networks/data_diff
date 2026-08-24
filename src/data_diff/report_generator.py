@@ -17,7 +17,7 @@ class ReportGenerator:
 
     def generate_summary(self) -> Dict:
         """Generate a summary of comparison results"""
-        return {
+        summary = {
             "row_counts": {
                 "unique_to_source1": len(self.result.unique_to_source1),
                 "unique_to_source2": len(self.result.unique_to_source2),
@@ -30,6 +30,29 @@ class ReportGenerator:
                 }
                 for col, score in self.result.column_stats.items()
             },
+        }
+
+        scope = self._stats_scope()
+        if scope:
+            summary["stats_scope"] = scope
+
+        return summary
+
+    def _stats_scope(self) -> Optional[Dict]:
+        """How many rows the column statistics were computed over
+
+        The percentages in column_statistics only cover rows present on both
+        sides, so a reader needs these counts to tell "no differences" from
+        "nothing was paired up".
+        """
+        if self.result.common_row_count is None:
+            return None
+
+        return {
+            "rows_compared": self.result.common_row_count,
+            "joined_rows": self.result.joined_row_count,
+            "rows_excluded_as_unique": len(self.result.unique_to_source1)
+            + len(self.result.unique_to_source2),
         }
 
     def to_console(self, show_diff: bool = True) -> str:
@@ -80,6 +103,14 @@ class ReportGenerator:
 
         # Column statistics
         output.append(f"{Style.BRIGHT}Column Statistics:{Style.RESET_ALL}")
+        if "stats_scope" in summary:
+            scope = summary["stats_scope"]
+            output.append(
+                f"  {Fore.CYAN}Column statistics computed over "
+                f"{scope['rows_compared']} of {scope['joined_rows']} joined rows "
+                f"({scope['rows_excluded_as_unique']} excluded as unique to one "
+                f"side){Style.RESET_ALL}"
+            )
         for col, stats in summary["column_statistics"].items():
             match_pct = float(stats["match_percentage"].rstrip("%"))
             color = (
@@ -236,6 +267,13 @@ class ReportGenerator:
             for key, value in summary["row_counts"].items():
                 writer.writerow([key, value])
             writer.writerow([])
+
+            # Write the scope the column statistics cover
+            if "stats_scope" in summary:
+                writer.writerow(["Column Statistics Scope"])
+                for key, value in summary["stats_scope"].items():
+                    writer.writerow([key, value])
+                writer.writerow([])
 
             # Write column statistics
             writer.writerow(["Column Statistics"])
