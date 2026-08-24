@@ -47,6 +47,10 @@ class ReportGenerator:
         if self.result.mixed_blank_key_groups is not None:
             summary["mixed_blank_key_groups"] = self.result.mixed_blank_key_groups
 
+        summary["trust_warnings"] = self.trust_warnings()
+        summary["trustworthy"] = not summary["trust_warnings"]
+        summary["has_differences"] = self.has_differences()
+
         return summary
 
     def _id_uniqueness(self) -> Optional[Dict]:
@@ -99,6 +103,65 @@ class ReportGenerator:
             )
 
         return stats
+
+    def _id_columns(self) -> List[str]:
+        """The key columns, for labelling difference rows"""
+        if self.result.id_columns:
+            return list(self.result.id_columns)
+
+        return [
+            col
+            for col in self.result.differences.columns
+            if not col.endswith(("_source1", "_source2"))
+        ]
+
+    def trust_warnings(self) -> List[str]:
+        """Reasons the numbers above should not be quoted as evidence
+
+        Each of these states looks identical to a clean run in the summary
+        alone, which is how this tool gets cited as proof of no loss.
+        """
+        warnings = []
+
+        if self.id_duplicates:
+            for side, duplicates in self.id_duplicates.items():
+                if duplicates:
+                    warnings.append(
+                        f"the key is not unique in {side} "
+                        f"({len(duplicates)} duplicate key group(s)); pairing is "
+                        f"cartesian and per-column differences may be invented"
+                    )
+
+        if self.result.common_row_count is not None:
+            excluded = len(self.result.unique_to_source1) + len(
+                self.result.unique_to_source2
+            )
+            if self.result.common_row_count == 0:
+                warnings.append(
+                    "no rows paired up, so the column statistics cover nothing"
+                )
+            elif excluded:
+                warnings.append(
+                    f"{excluded} row(s) are unique to one side and are excluded "
+                    f"from every column percentage"
+                )
+
+        vacuous = self.vacuous_columns()
+        if vacuous:
+            warnings.append(
+                f"blank on every compared row of both sides, so their match "
+                f"percentage is vacuous: {', '.join(vacuous)}"
+            )
+
+        return warnings
+
+    def has_differences(self) -> bool:
+        """Whether anything at all differs between the two sides"""
+        return bool(
+            self.result.differences.height
+            or self.result.unique_to_source1.height
+            or self.result.unique_to_source2.height
+        )
 
     def vacuous_columns(self) -> List[str]:
         """Compared columns that were blank on every row of both sides"""
@@ -256,6 +319,21 @@ class ReportGenerator:
                     f"of {coverage['rows']} compared"
                 )
 
+        warnings = summary["trust_warnings"]
+        output.append("")
+        output.append(f"{Style.BRIGHT}Trust:{Style.RESET_ALL}")
+        if warnings:
+            output.append(
+                f"  {Fore.RED}This comparison should not be quoted as evidence:"
+                f"{Style.RESET_ALL}"
+            )
+            for warning in warnings:
+                output.append(f"  {Fore.RED}- {warning}{Style.RESET_ALL}")
+        else:
+            output.append(
+                f"  {Fore.GREEN}No trust warnings{Style.RESET_ALL}"
+            )
+
         if self.result.mixed_blank_key_groups is not None:
             mixed = self.result.mixed_blank_key_groups
             output.append("")
@@ -373,8 +451,14 @@ class ReportGenerator:
         }
 
         # Add detailed differences
+        id_columns = self._id_columns()
         for row in self.result.differences.iter_rows(named=True):
-            diff_entry = {"id": row["id"], "changes": {}}
+            ids = {col: row[col] for col in id_columns if col in row}
+            diff_entry = {
+                "id": next(iter(ids.values())) if len(ids) == 1 else ids,
+                "ids": ids,
+                "changes": {},
+            }
 
             # Calculate specific changes
             for col in self.result.column_stats.keys():
@@ -410,6 +494,13 @@ class ReportGenerator:
             writer.writerow(["Row Counts"])
             for key, value in summary["row_counts"].items():
                 writer.writerow([key, value])
+            writer.writerow([])
+
+            # Write trust state
+            writer.writerow(["Trust"])
+            writer.writerow(["trustworthy", summary["trustworthy"]])
+            for warning in summary["trust_warnings"]:
+                writer.writerow(["warning", warning])
             writer.writerow([])
 
             # Write ID uniqueness
@@ -489,8 +580,11 @@ class ReportGenerator:
                 # Write modified rows
                 writer.writerow(["Modified Rows"])
                 writer.writerow(["ID", "Column", "Source 1 Value", "Source 2 Value"])
+                id_columns = self._id_columns()
                 for row in self.result.differences.iter_rows(named=True):
-                    id_str = f"id={row['id']}"
+                    id_str = ", ".join(
+                        f"{col}={row[col]}" for col in id_columns if col in row
+                    )
                     for col in self.result.column_stats.keys():
                         val1 = row.get(f"{col}_source1")
                         val2 = row.get(f"{col}_source2")

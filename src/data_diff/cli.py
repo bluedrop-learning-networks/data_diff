@@ -27,6 +27,13 @@ class SingleUseArgument(argparse.Action):
         setattr(namespace, self.dest, values)
 
 
+# Exit codes used with --exit-code. 1 stays reserved for a failed run.
+EXIT_NO_DIFFERENCES = 0
+EXIT_ERROR = 1
+EXIT_DIFFERENCES = 2
+EXIT_UNTRUSTED = 3
+
+
 def parse_args(args=None):
     parser = argparse.ArgumentParser(
         description="Compare two data sources and identify differences"
@@ -65,6 +72,14 @@ def parse_args(args=None):
         help="Unique key column in source2 corresponding to --left-key",
     )
     parser.add_argument(
+        "--exit-code",
+        action="store_true",
+        help=f"Exit {EXIT_DIFFERENCES} when differences are found and "
+        f"{EXIT_UNTRUSTED} when the comparison cannot be trusted (non-unique "
+        f"key, vacuous column, rows excluded from the column statistics). "
+        f"Without this the process exits 0 in all three cases",
+    )
+    parser.add_argument(
         "--strict-ids",
         action="store_true",
         help="Exit non-zero if the ID columns are not unique on either side "
@@ -91,7 +106,7 @@ def parse_args(args=None):
 def fail(message: str) -> None:
     """Report a usage problem and stop, without a traceback"""
     print(f"Error: {message}", file=sys.stderr)
-    sys.exit(1)
+    sys.exit(EXIT_ERROR)
 
 
 def resolve_exact_keys(args, source1, source2, column_mapping):
@@ -184,7 +199,7 @@ def main():
                 print(f"{prefix}{error.message}", file=sys.stderr)
 
             if has_fatal:
-                sys.exit(1)
+                sys.exit(EXIT_ERROR)
         else:
             id_columns = id_handler.detect_id_columns()
             if not id_columns:
@@ -192,7 +207,7 @@ def main():
                     "Error: No suitable ID columns found. Please specify with --id-columns",
                     file=sys.stderr,
                 )
-                sys.exit(1)
+                sys.exit(EXIT_ERROR)
 
         # The ID columns carry source2's own names
         id_columns_source2 = [column_mapping.get(col, col) for col in id_columns]
@@ -207,7 +222,7 @@ def main():
         if source2_errors:
             for error in source2_errors:
                 print(f"Error: {error.message} (source2)", file=sys.stderr)
-            sys.exit(1)
+            sys.exit(EXIT_ERROR)
 
         # Check for duplicate IDs on both sides. Unequal group sizes between the
         # sides are what make pairing invent per-column differences, so a check
@@ -275,14 +290,21 @@ def main():
                 "Error: --strict-ids: the ID columns are not unique",
                 file=sys.stderr,
             )
-            sys.exit(1)
+            sys.exit(EXIT_ERROR)
+
+        if args.exit_code:
+            if generator.trust_warnings():
+                sys.exit(EXIT_UNTRUSTED)
+            if generator.has_differences():
+                sys.exit(EXIT_DIFFERENCES)
+            sys.exit(EXIT_NO_DIFFERENCES)
 
     except Exception as e:
         import traceback
         print(f"Error: {str(e)}", file=sys.stderr)
         print("\nTraceback:", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
-        sys.exit(1)
+        sys.exit(EXIT_ERROR)
 
 
 if __name__ == "__main__":

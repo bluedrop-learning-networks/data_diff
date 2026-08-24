@@ -36,6 +36,8 @@ class ComparisonResult:
     # Per side, how many key groups hold both a blank and a non-blank value in
     # a compared column. Zero means a self-comparison could not have failed.
     mixed_blank_key_groups: Optional[Dict[str, int]] = None
+    # The key the two sides were paired on, so reports can label rows by it
+    id_columns: Optional[List[str]] = None
 
 
 class ComparisonEngine:
@@ -279,4 +281,5 @@ class ComparisonEngine:
             column_directions=column_directions,
             column_coverage=column_coverage,
             mixed_blank_key_groups=mixed_blank_key_groups,
+            id_columns=list(self.id_columns),
         )

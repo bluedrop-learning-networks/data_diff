@@ -485,3 +485,53 @@ def test_undefined_percentage_renders_without_crashing():
     output = strip_ansi(generator.to_console(show_diff=False))
     assert 'Column statistics computed over 0 of 2 joined rows' in output
     assert 'n/a' in output
+
+def test_trust_warnings_name_each_untrustworthy_state():
+    result = ComparisonResult(
+        unique_to_source1=pl.DataFrame([{'id': '1'}]),
+        unique_to_source2=pl.DataFrame(),
+        differences=pl.DataFrame(),
+        column_stats={'empty': 1.0},
+        common_row_count=2,
+        joined_row_count=3,
+        column_coverage={
+            'empty': {'source1_non_blank': 0, 'source2_non_blank': 0, 'rows': 2}
+        },
+    )
+    generator = ReportGenerator(
+        result,
+        id_duplicates={
+            'source1': [],
+            'source2': [{'id_values': {'id': '2'}, 'count': 2}],
+        },
+    )
+    warnings = generator.trust_warnings()
+
+    assert any('not unique in source2' in w for w in warnings)
+    assert any('excluded from every column percentage' in w for w in warnings)
+    assert any('vacuous' in w for w in warnings)
+
+    summary = generator.generate_summary()
+    assert summary['trustworthy'] is False
+    assert summary['has_differences'] is True
+
+    output = strip_ansi(generator.to_console(show_diff=False))
+    assert 'should not be quoted as evidence' in output
+
+def test_clean_comparison_has_no_trust_warnings():
+    result = ComparisonResult(
+        unique_to_source1=pl.DataFrame(),
+        unique_to_source2=pl.DataFrame(),
+        differences=pl.DataFrame(),
+        column_stats={'value': 1.0},
+        common_row_count=2,
+        joined_row_count=2,
+        column_coverage={
+            'value': {'source1_non_blank': 2, 'source2_non_blank': 2, 'rows': 2}
+        },
+    )
+    generator = ReportGenerator(result, id_duplicates={'source1': [], 'source2': []})
+
+    assert generator.trust_warnings() == []
+    assert generator.has_differences() is False
+    assert 'No trust warnings' in strip_ansi(generator.to_console(show_diff=False))

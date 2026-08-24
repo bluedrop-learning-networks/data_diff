@@ -1,8 +1,14 @@
+import json
 import re
 import sys
 
 import pytest
 from data_diff import main, parse_args
+from data_diff.cli import (
+    EXIT_DIFFERENCES,
+    EXIT_NO_DIFFERENCES,
+    EXIT_UNTRUSTED,
+)
 
 
 def strip_ansi(text: str) -> str:
@@ -308,3 +314,97 @@ def test_exact_key_missing_column(monkeypatch, capsys, differing_key_names):
             ],
         )
     assert "not found in source1" in capsys.readouterr().err
+
+
+def _write(tmp_path, name, text):
+    path = tmp_path / name
+    path.write_text(text)
+    return str(path)
+
+
+def test_exit_code_zero_when_identical(monkeypatch, tmp_path):
+    rows = "id,value\n1,a\n2,b\n"
+    source1 = _write(tmp_path, "s1.csv", rows)
+    source2 = _write(tmp_path, "s2.csv", rows)
+
+    with pytest.raises(SystemExit) as exc:
+        run_cli(monkeypatch, [source1, source2, "--id-columns=id", "--exit-code"])
+    assert exc.value.code == EXIT_NO_DIFFERENCES
+
+
+def test_exit_code_signals_differences(monkeypatch, tmp_path):
+    source1 = _write(tmp_path, "s1.csv", "id,value\n1,a\n2,b\n")
+    source2 = _write(tmp_path, "s2.csv", "id,value\n1,a\n2,CHANGED\n")
+
+    with pytest.raises(SystemExit) as exc:
+        run_cli(monkeypatch, [source1, source2, "--id-columns=id", "--exit-code"])
+    assert exc.value.code == EXIT_DIFFERENCES
+
+
+def test_exit_code_signals_an_untrustworthy_comparison(monkeypatch, tmp_path):
+    """Rows excluded from the column stats must not look like success"""
+    source1 = _write(tmp_path, "s1.csv", "id,value\n1,a\n2,b\n")
+    source2 = _write(tmp_path, "s2.csv", "id,value\n1,a\n99,b\n")
+
+    with pytest.raises(SystemExit) as exc:
+        run_cli(monkeypatch, [source1, source2, "--id-columns=id", "--exit-code"])
+    assert exc.value.code == EXIT_UNTRUSTED
+
+
+def test_exit_code_signals_a_vacuous_column(monkeypatch, tmp_path):
+    rows = "id,value\n1,\n2,\n"
+    source1 = _write(tmp_path, "s1.csv", rows)
+    source2 = _write(tmp_path, "s2.csv", rows)
+
+    with pytest.raises(SystemExit) as exc:
+        run_cli(monkeypatch, [source1, source2, "--id-columns=id", "--exit-code"])
+    assert exc.value.code == EXIT_UNTRUSTED
+
+
+def test_exit_code_signals_a_non_unique_key(monkeypatch, tmp_path):
+    rows = "id,value\n1,a\n1,a\n"
+    source1 = _write(tmp_path, "s1.csv", rows)
+    source2 = _write(tmp_path, "s2.csv", rows)
+
+    with pytest.raises(SystemExit) as exc:
+        run_cli(monkeypatch, [source1, source2, "--id-columns=id", "--exit-code"])
+    assert exc.value.code == EXIT_UNTRUSTED
+
+
+def test_exit_code_is_opt_in(monkeypatch, tmp_path):
+    """Without the flag the process still exits 0 on differences"""
+    source1 = _write(tmp_path, "s1.csv", "id,value\n1,a\n")
+    source2 = _write(tmp_path, "s2.csv", "id,value\n1,CHANGED\n")
+
+    run_cli(monkeypatch, [source1, source2, "--id-columns=id", "--no-diff"])
+
+
+def test_json_output_with_a_non_id_key_name(monkeypatch, capsys, tmp_path):
+    """to_json used to raise KeyError unless the key was literally named id"""
+    source1 = _write(tmp_path, "s1.csv", "registrationId,amount\nR1,10\n")
+    source2 = _write(tmp_path, "s2.csv", "identifier,amount\nR1,20\n")
+
+    run_cli(
+        monkeypatch,
+        [
+            source1,
+            source2,
+            "--left-key",
+            "registrationId",
+            "--right-key",
+            "identifier",
+            "--output-format=json",
+        ],
+    )
+
+    report = json.loads(capsys.readouterr().out)
+    assert report["details"]["differences"][0]["ids"] == {"registrationId": "R1"}
+    assert report["details"]["differences"][0]["changes"]["amount"] == {
+        "source1": "10",
+        "source2": "20",
+    }
+    assert report["summary"]["trustworthy"] is True
+    assert report["summary"]["has_differences"] is True
+    assert report["summary"]["column_statistics"]["amount"]["directions"][
+        "changed"
+    ] == 1
