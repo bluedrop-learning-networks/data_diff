@@ -51,6 +51,12 @@ def parse_args(args=None):
         "--case-sensitive", action="store_true", help="Enable case-sensitive comparison"
     )
     parser.add_argument(
+        "--strict-ids",
+        action="store_true",
+        help="Exit non-zero if the ID columns are not unique on either side "
+        "(default: report and continue)",
+    )
+    parser.add_argument(
         "--no-trim", action="store_true", help="Disable string trimming"
     )
     parser.add_argument(
@@ -93,6 +99,7 @@ def main():
 
         # Handle ID columns
         id_handler = IDHandler(source1.columns, sample1)
+        id_handler2 = IDHandler(source2.columns, sample2)
         if args.id_columns:
             id_columns = args.id_columns.split(",")
             validation_errors = id_handler.validate_id_columns(id_columns)
@@ -120,14 +127,36 @@ def main():
                 )
                 sys.exit(1)
 
-        # Check for duplicate IDs
-        duplicates = id_handler.find_duplicate_ids(id_columns)
-        if duplicates:
-            print("Warning: Duplicate IDs found:", file=sys.stderr)
-            for dup in duplicates:
-                print(
-                    f"  {dup['id_values']}: {dup['count']} occurrences", file=sys.stderr
-                )
+        # The ID columns carry source2's own names
+        id_columns_source2 = [column_mapping.get(col, col) for col in id_columns]
+
+        # A missing ID column on source2 would fail the join later with a much
+        # less obvious message
+        source2_errors = [
+            error
+            for error in id_handler2.validate_id_columns(id_columns_source2)
+            if isinstance(error, FatalIDValidationError)
+        ]
+        if source2_errors:
+            for error in source2_errors:
+                print(f"Error: {error.message} (source2)", file=sys.stderr)
+            sys.exit(1)
+
+        # Check for duplicate IDs on both sides. Unequal group sizes between the
+        # sides are what make pairing invent per-column differences, so a check
+        # of source1 alone can miss the cause entirely.
+        id_duplicates = {
+            "source1": id_handler.find_duplicate_ids(id_columns),
+            "source2": id_handler2.find_duplicate_ids(id_columns_source2),
+        }
+        for side, duplicates in id_duplicates.items():
+            if duplicates:
+                print(f"Warning: Duplicate IDs found in {side}:", file=sys.stderr)
+                for dup in duplicates:
+                    print(
+                        f"  {dup['id_values']}: {dup['count']} occurrences",
+                        file=sys.stderr,
+                    )
 
         # Create comparison config
         config = ComparisonConfig(
@@ -153,7 +182,7 @@ def main():
         result = engine.compare()
 
         # Generate report
-        generator = ReportGenerator(result)
+        generator = ReportGenerator(result, id_duplicates=id_duplicates)
         if args.output_format == "console":
             print(generator.to_console(show_diff=not args.no_diff))
         elif args.output_format == "json":
@@ -165,6 +194,13 @@ def main():
             if not args.output_file:
                 raise ValueError("--output-file is required for CSV output")
             generator.to_csv(args.output_file)
+
+        if args.strict_ids and any(id_duplicates.values()):
+            print(
+                "Error: --strict-ids: the ID columns are not unique",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     except Exception as e:
         import traceback

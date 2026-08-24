@@ -1,5 +1,7 @@
+import sys
+
 import pytest
-from data_diff import parse_args
+from data_diff import main, parse_args
 
 
 def test_basic_cli_args():
@@ -53,3 +55,67 @@ def test_single_occurrence_still_accepted():
     )
     assert args.id_columns == "id,region"
     assert args.compare_columns == "name"
+
+
+@pytest.fixture
+def duplicate_in_source2(tmp_path):
+    """source1 has a unique key; source2 repeats one"""
+    source1 = tmp_path / "s1.csv"
+    source1.write_text("id,name\n1,Alice\n2,Bob\n")
+    source2 = tmp_path / "s2.csv"
+    source2.write_text("id,name\n1,Alice\n2,Bob\n2,Bob\n")
+    return source1, source2
+
+
+def run_cli(monkeypatch, argv):
+    monkeypatch.setattr(sys, "argv", ["data_diff", *argv])
+    main()
+
+
+def test_duplicate_ids_in_source2_are_reported(
+    monkeypatch, capsys, duplicate_in_source2
+):
+    source1, source2 = duplicate_in_source2
+    run_cli(monkeypatch, [str(source1), str(source2), "--id-columns=id", "--no-diff"])
+
+    captured = capsys.readouterr()
+    assert "source2" in captured.err
+    # and it must reach the report a human reads, not just stderr
+    assert "ID Uniqueness" in captured.out
+    assert "source2" in captured.out
+
+
+def test_unique_ids_on_both_sides_report_as_unique(monkeypatch, capsys, tmp_path):
+    source1 = tmp_path / "s1.csv"
+    source1.write_text("id,name\n1,Alice\n2,Bob\n")
+    source2 = tmp_path / "s2.csv"
+    source2.write_text("id,name\n1,Alice\n2,Bob\n")
+
+    run_cli(monkeypatch, [str(source1), str(source2), "--id-columns=id", "--no-diff"])
+
+    captured = capsys.readouterr()
+    assert "unique on both sides" in captured.out
+
+
+def test_strict_ids_exits_non_zero(monkeypatch, capsys, duplicate_in_source2):
+    source1, source2 = duplicate_in_source2
+    with pytest.raises(SystemExit) as exc:
+        run_cli(
+            monkeypatch,
+            [
+                str(source1),
+                str(source2),
+                "--id-columns=id",
+                "--no-diff",
+                "--strict-ids",
+            ],
+        )
+    assert exc.value.code == 1
+
+
+def test_duplicate_ids_are_not_fatal_by_default(
+    monkeypatch, capsys, duplicate_in_source2
+):
+    """Default stays non-fatal so existing callers keep working"""
+    source1, source2 = duplicate_in_source2
+    run_cli(monkeypatch, [str(source1), str(source2), "--id-columns=id", "--no-diff"])

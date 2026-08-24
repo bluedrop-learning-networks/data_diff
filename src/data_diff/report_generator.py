@@ -12,8 +12,15 @@ init(strip=False)  # Initialize colorama
 class ReportGenerator:
     """Generates comparison reports in various formats"""
 
-    def __init__(self, result: ComparisonResult):
+    def __init__(
+        self,
+        result: ComparisonResult,
+        id_duplicates: Optional[Dict[str, List[Dict]]] = None,
+    ):
         self.result = result
+        # {"source1": [...], "source2": [...]} as returned by IDHandler.
+        # None means uniqueness was never checked.
+        self.id_duplicates = id_duplicates
 
     def generate_summary(self) -> Dict:
         """Generate a summary of comparison results"""
@@ -36,7 +43,30 @@ class ReportGenerator:
         if scope:
             summary["stats_scope"] = scope
 
+        uniqueness = self._id_uniqueness()
+        if uniqueness:
+            summary["id_uniqueness"] = uniqueness
+
         return summary
+
+    def _id_uniqueness(self) -> Optional[Dict]:
+        """Per-side duplicate-key counts
+
+        Duplicate keys make the join pair rows cartesian-style, which invents
+        per-column differences, so this belongs in the report rather than in a
+        stderr warning nobody keeps.
+        """
+        if self.id_duplicates is None:
+            return None
+
+        uniqueness = {}
+        for side, duplicates in self.id_duplicates.items():
+            uniqueness[side] = {
+                "duplicate_key_groups": len(duplicates),
+                "duplicate_rows": sum(dup["count"] for dup in duplicates),
+                "examples": [dup["id_values"] for dup in duplicates[:5]],
+            }
+        return uniqueness
 
     def _stats_scope(self) -> Optional[Dict]:
         """How many rows the column statistics were computed over
@@ -100,6 +130,33 @@ class ReportGenerator:
         output.append(
             f"  Rows with differences: {Fore.YELLOW}{summary['row_counts']['differences']}{Style.RESET_ALL}\n"
         )
+
+        # ID uniqueness
+        if "id_uniqueness" in summary:
+            output.append(f"{Style.BRIGHT}ID Uniqueness:{Style.RESET_ALL}")
+            if any(
+                side["duplicate_key_groups"]
+                for side in summary["id_uniqueness"].values()
+            ):
+                for side, stats in summary["id_uniqueness"].items():
+                    groups = stats["duplicate_key_groups"]
+                    color = Fore.RED if groups else Fore.GREEN
+                    output.append(
+                        f"  {side}: {color}{groups} duplicate key group(s) "
+                        f"covering {stats['duplicate_rows']} rows{Style.RESET_ALL}"
+                    )
+                    for example in stats["examples"]:
+                        output.append(f"    e.g. {example}")
+                output.append(
+                    f"  {Fore.RED}Duplicate keys pair rows cartesian-style; "
+                    f"per-column differences below may be an artefact"
+                    f"{Style.RESET_ALL}"
+                )
+            else:
+                output.append(
+                    f"  {Fore.GREEN}Key is unique on both sides{Style.RESET_ALL}"
+                )
+            output.append("")
 
         # Column statistics
         output.append(f"{Style.BRIGHT}Column Statistics:{Style.RESET_ALL}")
@@ -267,6 +324,22 @@ class ReportGenerator:
             for key, value in summary["row_counts"].items():
                 writer.writerow([key, value])
             writer.writerow([])
+
+            # Write ID uniqueness
+            if "id_uniqueness" in summary:
+                writer.writerow(["ID Uniqueness"])
+                writer.writerow(
+                    ["Side", "Duplicate Key Groups", "Duplicate Rows"]
+                )
+                for side, stats in summary["id_uniqueness"].items():
+                    writer.writerow(
+                        [
+                            side,
+                            stats["duplicate_key_groups"],
+                            stats["duplicate_rows"],
+                        ]
+                    )
+                writer.writerow([])
 
             # Write the scope the column statistics cover
             if "stats_scope" in summary:

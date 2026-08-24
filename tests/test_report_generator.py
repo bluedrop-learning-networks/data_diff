@@ -366,3 +366,26 @@ def test_stats_scope_omitted_when_unknown(sample_result):
 
     output = strip_ansi(ReportGenerator(sample_result).to_console(show_diff=False))
     assert 'Column statistics computed over' not in output
+
+def test_summary_reports_duplicate_ids_per_side(scoped_result):
+    generator = ReportGenerator(
+        scoped_result,
+        id_duplicates={
+            'source1': [],
+            'source2': [{'id_values': {'id': '2'}, 'count': 3}],
+        },
+    )
+    summary = generator.generate_summary()
+
+    assert summary['id_uniqueness']['source1']['duplicate_key_groups'] == 0
+    assert summary['id_uniqueness']['source2']['duplicate_key_groups'] == 1
+    assert summary['id_uniqueness']['source2']['duplicate_rows'] == 3
+
+    output = strip_ansi(generator.to_console(show_diff=False))
+    assert 'ID Uniqueness' in output
+    assert 'source2: 1 duplicate key group(s)' in output
+    assert 'artefact' in output
+
+def test_id_uniqueness_omitted_when_not_checked(scoped_result):
+    summary = ReportGenerator(scoped_result).generate_summary()
+    assert 'id_uniqueness' not in summary
