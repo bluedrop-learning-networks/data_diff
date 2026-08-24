@@ -205,9 +205,14 @@ class ComparisonEngine:
             ]
         )
 
-        # Calculate column stats
+        # Calculate column stats. None when nothing paired up: a match
+        # percentage over zero rows does not exist.
         column_stats = {
-            col: common_rows.select(self._compare_columns(col)).mean().item()
+            col: (
+                common_rows.select(self._compare_columns(col)).mean().item()
+                if common_rows.height > 0
+                else None
+            )
             for col in columns_to_compare
         }
 

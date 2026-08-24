@@ -51,6 +51,20 @@ def parse_args(args=None):
         "--case-sensitive", action="store_true", help="Enable case-sensitive comparison"
     )
     parser.add_argument(
+        "--left-key",
+        action="append",
+        metavar="COLUMN",
+        help="Unique key column in source1, paired in order with --right-key. "
+        "Repeat both for a composite key. Replaces --id-columns and asserts "
+        "uniqueness on both sides",
+    )
+    parser.add_argument(
+        "--right-key",
+        action="append",
+        metavar="COLUMN",
+        help="Unique key column in source2 corresponding to --left-key",
+    )
+    parser.add_argument(
         "--strict-ids",
         action="store_true",
         help="Exit non-zero if the ID columns are not unique on either side "
@@ -72,6 +86,54 @@ def parse_args(args=None):
         help="Hide detailed differences in console output",
     )
     return parser.parse_args(args)
+
+
+def fail(message: str) -> None:
+    """Report a usage problem and stop, without a traceback"""
+    print(f"Error: {message}", file=sys.stderr)
+    sys.exit(1)
+
+
+def resolve_exact_keys(args, source1, source2, column_mapping):
+    """Pair the two sides on a declared key whose names differ per side
+
+    Returns (id_columns, column_mapping). The key pair is folded into the
+    column mapping so the engine renames source2's key to source1's name
+    before joining.
+    """
+    if not (args.left_key and args.right_key):
+        fail("--left-key and --right-key must be given together")
+    if len(args.left_key) != len(args.right_key):
+        fail(
+            f"--left-key was given {len(args.left_key)} time(s) but --right-key "
+            f"{len(args.right_key)}; they pair up in the order given"
+        )
+    if args.id_columns:
+        fail("--id-columns cannot be combined with --left-key/--right-key")
+
+    for left, right in zip(args.left_key, args.right_key):
+        if left not in source1.columns:
+            fail(f"--left-key column '{left}' not found in source1")
+        if right not in source2.columns:
+            fail(f"--right-key column '{right}' not found in source2")
+        if (
+            left != right
+            and left in source2.columns
+            and left not in column_mapping.values()
+        ):
+            fail(
+                f"source2 already has a column named '{left}', so renaming "
+                f"'{right}' to it would collide; map it with --mapping instead"
+            )
+
+        column_mapping = {
+            key: value
+            for key, value in column_mapping.items()
+            if key != left and value != right
+        }
+        column_mapping[left] = right
+
+    return list(args.left_key), column_mapping
 
 
 def main():
@@ -100,7 +162,12 @@ def main():
         # Handle ID columns
         id_handler = IDHandler(source1.columns, sample1)
         id_handler2 = IDHandler(source2.columns, sample2)
-        if args.id_columns:
+        exact_pairing = bool(args.left_key or args.right_key)
+        if exact_pairing:
+            id_columns, column_mapping = resolve_exact_keys(
+                args, source1, source2, column_mapping
+            )
+        elif args.id_columns:
             id_columns = args.id_columns.split(",")
             validation_errors = id_handler.validate_id_columns(id_columns)
 
@@ -157,6 +224,14 @@ def main():
                         f"  {dup['id_values']}: {dup['count']} occurrences",
                         file=sys.stderr,
                     )
+
+        # An exact key asserts uniqueness, so a violation is a bad assertion
+        # rather than something to warn about and carry on from
+        if exact_pairing and any(id_duplicates.values()):
+            fail(
+                "--left-key/--right-key must be unique on both sides; see the "
+                "duplicates reported above"
+            )
 
         # Create comparison config
         config = ComparisonConfig(

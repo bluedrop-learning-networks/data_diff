@@ -68,12 +68,24 @@ class ReportGenerator:
             }
         return uniqueness
 
-    def _column_summary(self, col: str, score: float) -> Dict:
-        """Per-column stats, with direction and coverage where available"""
-        stats = {
-            "match_percentage": f"{score*100:.1f}%",
-            "difference_percentage": f"{(1-score)*100:.1f}%",
-        }
+    NOT_APPLICABLE = "n/a"
+
+    def _column_summary(self, col: str, score: Optional[float]) -> Dict:
+        """Per-column stats, with direction and coverage where available
+
+        score is None when nothing was paired up, in which case a match
+        percentage does not exist and must not be invented.
+        """
+        if score is None:
+            stats = {
+                "match_percentage": self.NOT_APPLICABLE,
+                "difference_percentage": self.NOT_APPLICABLE,
+            }
+        else:
+            stats = {
+                "match_percentage": f"{score*100:.1f}%",
+                "difference_percentage": f"{(1-score)*100:.1f}%",
+            }
 
         if self.result.column_directions and col in self.result.column_directions:
             stats["directions"] = self.result.column_directions[col]
@@ -201,12 +213,15 @@ class ReportGenerator:
                 f"side){Style.RESET_ALL}"
             )
         for col, stats in summary["column_statistics"].items():
-            match_pct = float(stats["match_percentage"].rstrip("%"))
-            color = (
-                Fore.GREEN
-                if match_pct >= 90
-                else (Fore.YELLOW if match_pct >= 70 else Fore.RED)
-            )
+            if stats["match_percentage"] == self.NOT_APPLICABLE:
+                color = Fore.YELLOW
+            else:
+                match_pct = float(stats["match_percentage"].rstrip("%"))
+                color = (
+                    Fore.GREEN
+                    if match_pct >= 90
+                    else (Fore.YELLOW if match_pct >= 70 else Fore.RED)
+                )
 
             output.append(f"  {col}:")
             vacuous_note = (

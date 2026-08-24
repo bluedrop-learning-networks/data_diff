@@ -466,3 +466,22 @@ def test_column_stats_render_without_direction(sample_result):
     assert 'directions' not in summary['column_statistics']['name']
     assert 'vacuous' not in summary['column_statistics']['name']
     assert ReportGenerator(sample_result).vacuous_columns() == []
+
+def test_undefined_percentage_renders_without_crashing():
+    """Nothing paired up: the report used to raise TypeError on None"""
+    result = ComparisonResult(
+        unique_to_source1=pl.DataFrame([{'id': '1'}]),
+        unique_to_source2=pl.DataFrame([{'id': '2'}]),
+        differences=pl.DataFrame(),
+        column_stats={'value': None},
+        common_row_count=0,
+        joined_row_count=2,
+    )
+    generator = ReportGenerator(result)
+
+    summary = generator.generate_summary()
+    assert summary['column_statistics']['value']['match_percentage'] == 'n/a'
+
+    output = strip_ansi(generator.to_console(show_diff=False))
+    assert 'Column statistics computed over 0 of 2 joined rows' in output
+    assert 'n/a' in output

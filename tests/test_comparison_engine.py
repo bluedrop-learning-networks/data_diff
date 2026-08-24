@@ -433,3 +433,16 @@ def test_mixed_blank_key_groups_zero_when_not_expressible():
     result = _engine(source1, source1.clone()).compare()
 
     assert result.mixed_blank_key_groups == {'source1': 0, 'source2': 0}
+
+def test_no_paired_rows_yields_no_percentage():
+    """A match percentage over zero rows does not exist and must not be faked"""
+    source1 = pl.DataFrame({'id': ['1'], 'value': ['a']})
+    source2 = pl.DataFrame({'id': ['2'], 'value': ['b']})
+
+    result = _engine(source1, source2).compare()
+
+    assert result.common_row_count == 0
+    assert result.column_stats['value'] is None
+    assert result.column_directions['value'] == {
+        'agree': 0, 'changed': 0, 'lost': 0, 'gained': 0, 'blank_both': 0
+    }
