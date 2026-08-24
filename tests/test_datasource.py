@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from datacompare.datasource import (
+from data_diff.datasource import (
     detect_file_format,
     create_data_source,
     CSVDataSource,

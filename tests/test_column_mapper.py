@@ -1,5 +1,5 @@
 import pytest
-from datacompare.column_mapper import ColumnMapper
+from data_diff.column_mapper import ColumnMapper
 
 
 def test_exact_column_matching():

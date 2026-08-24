@@ -1,7 +1,7 @@
 import pytest
 import polars as pl
 import numpy as np
-from datacompare.comparison_engine import ComparisonEngine, ComparisonConfig
+from data_diff.comparison_engine import ComparisonEngine, ComparisonConfig
 
 @pytest.fixture
 def basic_data():

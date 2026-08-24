@@ -3,8 +3,8 @@ import json
 import re
 import polars as pl
 from colorama import Fore, Style
-from datacompare.comparison_engine import ComparisonResult
-from datacompare.report_generator import ReportGenerator
+from data_diff.comparison_engine import ComparisonResult
+from data_diff.report_generator import ReportGenerator
 
 def strip_ansi(text: str) -> str:
     """Remove ANSI escape sequences from text"""

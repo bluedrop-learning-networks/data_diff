@@ -1,5 +1,5 @@
 """
-datacompare package for comparing data sources
+data_diff package for comparing data sources
 """
 from .cli import parse_args, main
 

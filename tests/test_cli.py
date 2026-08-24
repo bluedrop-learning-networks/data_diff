@@ -1,5 +1,5 @@
 import pytest
-from datacompare import parse_args
+from data_diff import parse_args
 
 
 def test_basic_cli_args():
