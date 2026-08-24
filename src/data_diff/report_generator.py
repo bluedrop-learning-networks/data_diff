@@ -31,10 +31,7 @@ class ReportGenerator:
                 "differences": len(self.result.differences),
             },
             "column_statistics": {
-                col: {
-                    "match_percentage": f"{score*100:.1f}%",
-                    "difference_percentage": f"{(1-score)*100:.1f}%",
-                }
+                col: self._column_summary(col, score)
                 for col, score in self.result.column_stats.items()
             },
         }
@@ -46,6 +43,9 @@ class ReportGenerator:
         uniqueness = self._id_uniqueness()
         if uniqueness:
             summary["id_uniqueness"] = uniqueness
+
+        if self.result.mixed_blank_key_groups is not None:
+            summary["mixed_blank_key_groups"] = self.result.mixed_blank_key_groups
 
         return summary
 
@@ -67,6 +67,38 @@ class ReportGenerator:
                 "examples": [dup["id_values"] for dup in duplicates[:5]],
             }
         return uniqueness
+
+    def _column_summary(self, col: str, score: float) -> Dict:
+        """Per-column stats, with direction and coverage where available"""
+        stats = {
+            "match_percentage": f"{score*100:.1f}%",
+            "difference_percentage": f"{(1-score)*100:.1f}%",
+        }
+
+        if self.result.column_directions and col in self.result.column_directions:
+            stats["directions"] = self.result.column_directions[col]
+
+        if self.result.column_coverage and col in self.result.column_coverage:
+            coverage = self.result.column_coverage[col]
+            stats["coverage"] = coverage
+            stats["vacuous"] = (
+                coverage["source1_non_blank"] == 0
+                and coverage["source2_non_blank"] == 0
+            )
+
+        return stats
+
+    def vacuous_columns(self) -> List[str]:
+        """Compared columns that were blank on every row of both sides"""
+        if not self.result.column_coverage:
+            return []
+
+        return [
+            col
+            for col, coverage in self.result.column_coverage.items()
+            if coverage["source1_non_blank"] == 0
+            and coverage["source2_non_blank"] == 0
+        ]
 
     def _stats_scope(self) -> Optional[Dict]:
         """How many rows the column statistics were computed over
@@ -177,12 +209,52 @@ class ReportGenerator:
             )
 
             output.append(f"  {col}:")
+            vacuous_note = (
+                f" {Fore.RED}(0 non-blank rows: vacuous){Style.RESET_ALL}"
+                if stats.get("vacuous")
+                else ""
+            )
             output.append(
                 f"    Match: {color}{stats['match_percentage']}{Style.RESET_ALL}"
+                f"{vacuous_note}"
             )
             output.append(
                 f"    Diff:  {color}{stats['difference_percentage']}{Style.RESET_ALL}"
             )
+
+            if "directions" in stats:
+                directions = stats["directions"]
+                lost_color = Fore.RED if directions["lost"] else Fore.GREEN
+                output.append(
+                    f"    Agree: {directions['agree']}  "
+                    f"Changed: {directions['changed']}  "
+                    f"{lost_color}Lost: {directions['lost']}{Style.RESET_ALL}  "
+                    f"Gained: {directions['gained']}  "
+                    f"Blank both: {directions['blank_both']}"
+                )
+
+            if "coverage" in stats:
+                coverage = stats["coverage"]
+                output.append(
+                    f"    Non-blank rows: source1={coverage['source1_non_blank']}, "
+                    f"source2={coverage['source2_non_blank']} "
+                    f"of {coverage['rows']} compared"
+                )
+
+        if self.result.mixed_blank_key_groups is not None:
+            mixed = self.result.mixed_blank_key_groups
+            output.append("")
+            output.append(f"{Style.BRIGHT}Non-Vacuity:{Style.RESET_ALL}")
+            output.append(
+                f"  Key groups mixing blank and non-blank values in a compared "
+                f"column: source1={mixed['source1']}, source2={mixed['source2']}"
+            )
+            if not any(mixed.values()):
+                output.append(
+                    f"  {Fore.YELLOW}No key group can express a blank-versus-"
+                    f"populated pairing; a clean result here proves little"
+                    f"{Style.RESET_ALL}"
+                )
 
         return output
 
@@ -350,12 +422,49 @@ class ReportGenerator:
 
             # Write column statistics
             writer.writerow(["Column Statistics"])
-            writer.writerow(["Column", "Match %", "Difference %"])
+            writer.writerow(
+                [
+                    "Column",
+                    "Match %",
+                    "Difference %",
+                    "Agree",
+                    "Changed",
+                    "Lost",
+                    "Gained",
+                    "Blank Both",
+                    "Source1 Non-blank",
+                    "Source2 Non-blank",
+                    "Rows Compared",
+                    "Vacuous",
+                ]
+            )
             for col, stats in summary["column_statistics"].items():
+                directions = stats.get("directions", {})
+                coverage = stats.get("coverage", {})
                 writer.writerow(
-                    [col, stats["match_percentage"], stats["difference_percentage"]]
+                    [
+                        col,
+                        stats["match_percentage"],
+                        stats["difference_percentage"],
+                        directions.get("agree", ""),
+                        directions.get("changed", ""),
+                        directions.get("lost", ""),
+                        directions.get("gained", ""),
+                        directions.get("blank_both", ""),
+                        coverage.get("source1_non_blank", ""),
+                        coverage.get("source2_non_blank", ""),
+                        coverage.get("rows", ""),
+                        stats.get("vacuous", ""),
+                    ]
                 )
             writer.writerow([])
+
+            if "mixed_blank_key_groups" in summary:
+                writer.writerow(["Non-Vacuity"])
+                writer.writerow(["Side", "Mixed Blank Key Groups"])
+                for side, count in summary["mixed_blank_key_groups"].items():
+                    writer.writerow([side, count])
+                writer.writerow([])
 
             # Write differences if any exist
             if self.result.differences.height > 0:

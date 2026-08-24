@@ -26,6 +26,16 @@ class ComparisonResult:
     # so these are needed to tell "no differences" from "nothing to compare".
     common_row_count: Optional[int] = None
     joined_row_count: Optional[int] = None
+    # Per compared column, how the non-agreeing rows break down. A percentage
+    # does not say which way a difference runs, and only "lost" is a
+    # customer-visible defect. The five buckets partition the common rows.
+    column_directions: Optional[Dict[str, Dict[str, int]]] = None
+    # Per compared column, how many common rows are non-blank on each side. A
+    # column blank everywhere agrees with itself perfectly and proves nothing.
+    column_coverage: Optional[Dict[str, Dict[str, int]]] = None
+    # Per side, how many key groups hold both a blank and a non-blank value in
+    # a compared column. Zero means a self-comparison could not have failed.
+    mixed_blank_key_groups: Optional[Dict[str, int]] = None
 
 
 class ComparisonEngine:
@@ -68,6 +78,72 @@ class ComparisonEngine:
                 ],
             ]
         )
+
+    @staticmethod
+    def _is_blank(col: str) -> pl.Expr:
+        """Null, empty, or whitespace-only"""
+        expr = pl.col(col).cast(pl.String, strict=False).str.strip_chars()
+        return expr.is_null() | (expr == "")
+
+    def _direction_counts(
+        self, common_rows: pl.DataFrame, col: str
+    ) -> Dict[str, int]:
+        """Split the common rows for one column into direction buckets
+
+        agree uses the same expression as column_stats, so the two always
+        agree; the remaining four buckets partition the rest.
+        """
+        agrees = self._compare_columns(col).fill_null(False)
+        blank1 = self._is_blank(col)
+        blank2 = self._is_blank(f"{col}_source2")
+
+        counts = common_rows.select(
+            agrees.sum().alias("agree"),
+            (~agrees & ~blank1 & ~blank2).sum().alias("changed"),
+            (~agrees & ~blank1 & blank2).sum().alias("lost"),
+            (~agrees & blank1 & ~blank2).sum().alias("gained"),
+            (~agrees & blank1 & blank2).sum().alias("blank_both"),
+        ).row(0, named=True)
+
+        return {key: int(value) for key, value in counts.items()}
+
+    def _coverage_counts(
+        self, common_rows: pl.DataFrame, col: str
+    ) -> Dict[str, int]:
+        """How many common rows carry a value on each side"""
+        counts = common_rows.select(
+            (~self._is_blank(col)).sum().alias("source1_non_blank"),
+            (~self._is_blank(f"{col}_source2")).sum().alias("source2_non_blank"),
+        ).row(0, named=True)
+
+        return {
+            **{key: int(value) for key, value in counts.items()},
+            "rows": common_rows.height,
+        }
+
+    def _count_mixed_blank_key_groups(
+        self, df: pl.DataFrame, columns: List[str]
+    ) -> int:
+        """Key groups holding both a blank and a non-blank value in one column
+
+        A file with none of these cannot exhibit a blank-versus-populated
+        pairing, so comparing it against its own copy cannot fail.
+        """
+        present = [col for col in columns if col in df.columns]
+        if not present or df.height == 0:
+            return 0
+
+        mixed = df.group_by(self.id_columns).agg(
+            [
+                (
+                    self._is_blank(col).any() & (~self._is_blank(col)).any()
+                ).alias(f"__mixed_{index}")
+                for index, col in enumerate(present)
+            ]
+        )
+        flags = [f"__mixed_{index}" for index in range(len(present))]
+
+        return int(mixed.select(pl.any_horizontal(flags).sum()).item())
 
     def _compare_columns(self, col: str) -> pl.Expr:
         """Create comparison expression for a column pair"""
@@ -135,6 +211,23 @@ class ComparisonEngine:
             for col in columns_to_compare
         }
 
+        column_directions = {
+            col: self._direction_counts(common_rows, col)
+            for col in columns_to_compare
+        }
+        column_coverage = {
+            col: self._coverage_counts(common_rows, col)
+            for col in columns_to_compare
+        }
+        mixed_blank_key_groups = {
+            "source1": self._count_mixed_blank_key_groups(
+                self.source1_data, columns_to_compare
+            ),
+            "source2": self._count_mixed_blank_key_groups(
+                source2_renamed.collect(), columns_to_compare
+            ),
+        }
+
         # Find differences
         diff_conditions = []
         for col in columns_to_compare:
@@ -178,4 +271,7 @@ class ComparisonEngine:
             column_stats=column_stats,
             common_row_count=common_rows.height,
             joined_row_count=merged_df.height,
+            column_directions=column_directions,
+            column_coverage=column_coverage,
+            mixed_blank_key_groups=mixed_blank_key_groups,
         )

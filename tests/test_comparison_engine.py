@@ -329,3 +329,107 @@ def test_stats_exclude_rows_whose_key_moved():
     assert len(result.differences) == 0
     assert result.common_row_count == 1
     assert result.joined_row_count == 3
+
+@pytest.fixture
+def directional_data():
+    """Two frames exercising each direction bucket once"""
+    source1 = pl.DataFrame({
+        'id': ['1', '2', '3', '4', '5'],
+        'value': ['same', 'old', 'dropped', '', ''],
+    })
+    source2 = pl.DataFrame({
+        'id': ['1', '2', '3', '4', '5'],
+        'value': ['same', 'new', '', 'filled', '   '],
+    })
+    return source1, source2
+
+def _engine(source1, source2, **kwargs):
+    return ComparisonEngine(
+        source1_data=source1,
+        source2_data=source2,
+        id_columns=['id'],
+        column_mapping={'value': 'value'},
+        **kwargs
+    )
+
+def test_direction_counts_split_by_direction(directional_data):
+    """A match percentage cannot say which way a difference runs"""
+    result = _engine(*directional_data).compare()
+    directions = result.column_directions['value']
+
+    assert directions['agree'] == 1      # 'same'
+    assert directions['changed'] == 1    # old -> new
+    assert directions['lost'] == 1       # dropped -> blank
+    assert directions['gained'] == 1     # blank -> filled
+    assert directions['blank_both'] == 1  # '' vs '   ', untrimmed by default
+
+def test_blank_both_folds_into_agree_when_trimming(directional_data):
+    result = _engine(
+        *directional_data, config=ComparisonConfig(trim_strings=True)
+    ).compare()
+    directions = result.column_directions['value']
+
+    assert directions['agree'] == 2
+    assert directions['blank_both'] == 0
+
+def test_direction_buckets_partition_the_common_rows(directional_data):
+    result = _engine(*directional_data).compare()
+    directions = result.column_directions['value']
+
+    assert sum(directions.values()) == result.common_row_count
+
+def test_direction_agree_matches_column_stats(directional_data):
+    """The agree bucket must not contradict the published percentage"""
+    result = _engine(*directional_data).compare()
+    directions = result.column_directions['value']
+
+    expected = result.column_stats['value'] * result.common_row_count
+    assert directions['agree'] == pytest.approx(expected)
+
+def test_gained_only_column_is_not_damage():
+    """The new side filling blanks reads as a low match percentage"""
+    source1 = pl.DataFrame({'id': ['1', '2', '3'], 'value': ['', '', 'keep']})
+    source2 = pl.DataFrame({'id': ['1', '2', '3'], 'value': ['a', 'b', 'keep']})
+
+    result = _engine(source1, source2).compare()
+
+    assert result.column_stats['value'] < 0.5
+    assert result.column_directions['value']['lost'] == 0
+    assert result.column_directions['value']['gained'] == 2
+
+def test_coverage_counts_expose_a_vacuous_column():
+    """A column blank on every row agrees with itself and proves nothing"""
+    source1 = pl.DataFrame({'id': ['1', '2'], 'value': ['', '']})
+    source2 = pl.DataFrame({'id': ['1', '2'], 'value': ['', '']})
+
+    result = _engine(source1, source2).compare()
+
+    assert result.column_stats['value'] == 1.0
+    assert result.column_coverage['value']['source1_non_blank'] == 0
+    assert result.column_coverage['value']['source2_non_blank'] == 0
+    assert result.column_coverage['value']['rows'] == 2
+
+def test_coverage_counts_per_side(directional_data):
+    result = _engine(*directional_data).compare()
+    coverage = result.column_coverage['value']
+
+    assert coverage['source1_non_blank'] == 3
+    assert coverage['source2_non_blank'] == 3
+    assert coverage['rows'] == 5
+
+def test_mixed_blank_key_groups_detects_expressible_failure():
+    """A key group holding both a blank and a value can express a loss"""
+    source1 = pl.DataFrame({
+        'id': ['1', '1', '2'],
+        'value': ['set', '', 'set'],
+    })
+    result = _engine(source1, source1.clone()).compare()
+
+    assert result.mixed_blank_key_groups['source1'] == 1
+    assert result.mixed_blank_key_groups['source2'] == 1
+
+def test_mixed_blank_key_groups_zero_when_not_expressible():
+    source1 = pl.DataFrame({'id': ['1', '2'], 'value': ['a', 'b']})
+    result = _engine(source1, source1.clone()).compare()
+
+    assert result.mixed_blank_key_groups == {'source1': 0, 'source2': 0}
