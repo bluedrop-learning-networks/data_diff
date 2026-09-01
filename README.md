@@ -85,21 +85,11 @@ reported 80.5% match. Both sides are checked and the finding appears in the
 report body, not just on stderr.
 
 ```bash
-uv run data_diff old.csv new.csv --id-columns id --strict-ids   # duplicates are fatal
-uv run data_diff old.csv new.csv --id-columns id --exit-code    # differences reach $?
+uv run data_diff old.csv new.csv --id-columns id --strict-ids     # duplicates are fatal
+uv run data_diff old.csv new.csv --id-columns id --no-exit-code   # always exit 0
 ```
 
-With `--exit-code`:
-
-| Code | Meaning |
-| ---- | ------- |
-| 0    | No differences, no trust warnings |
-| 1    | The run failed (bad arguments, missing file, unreadable input) |
-| 2    | Differences found |
-| 3    | The comparison cannot be trusted: non-unique key, a vacuous column, or rows excluded from the column statistics |
-
-Without the flag the process exits 0 in all three of those cases, which is how
-this tool ends up quoted as evidence of no loss. Pass it in any script.
+Exit codes are on by default; see [Exit codes](#exit-codes) for what each one means.
 
 ### Self-check
 

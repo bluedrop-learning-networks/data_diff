@@ -135,7 +135,12 @@ def test_duplicate_ids_are_not_fatal_by_default(
 ):
     """Default stays non-fatal so existing callers keep working"""
     source1, source2 = duplicate_in_source2
-    run_cli(monkeypatch, [str(source1), str(source2), "--id-columns=id", "--no-diff"])
+    code = run_cli(
+        monkeypatch, [str(source1), str(source2), "--id-columns=id", "--no-diff"]
+    )
+    # Non-fatal, but duplicates still make the comparison untrustworthy. Without this
+    # assertion the test passed even if duplicates became fatal.
+    assert code == EXIT_UNTRUSTED
 
 
 @pytest.fixture

@@ -85,6 +85,17 @@ def run_self_check(args, compare) -> int:
         )
         return 1
 
+    # Both controls compare source1 with a copy of itself, so the copy carries the
+    # --left-key names. A differing --right-key then fails resolution against a file
+    # the user never supplied, with a message naming source2.
+    if args.left_key or args.right_key:
+        print(
+            "Error: --self-check compares a file with a copy of itself, so "
+            "--left-key/--right-key do not apply; use --id-columns",
+            file=sys.stderr,
+        )
+        return 1
+
     output = []
     failures = []
 
