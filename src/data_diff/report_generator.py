@@ -12,24 +12,184 @@ init(strip=False)  # Initialize colorama
 class ReportGenerator:
     """Generates comparison reports in various formats"""
 
-    def __init__(self, result: ComparisonResult):
+    def __init__(
+        self,
+        result: ComparisonResult,
+        id_duplicates: Optional[Dict[str, List[Dict]]] = None,
+    ):
         self.result = result
+        # {"source1": [...], "source2": [...]} as returned by IDHandler.
+        # None means uniqueness was never checked.
+        self.id_duplicates = id_duplicates
 
     def generate_summary(self) -> Dict:
         """Generate a summary of comparison results"""
-        return {
+        summary = {
             "row_counts": {
                 "unique_to_source1": len(self.result.unique_to_source1),
                 "unique_to_source2": len(self.result.unique_to_source2),
                 "differences": len(self.result.differences),
             },
             "column_statistics": {
-                col: {
-                    "match_percentage": f"{score*100:.1f}%",
-                    "difference_percentage": f"{(1-score)*100:.1f}%",
-                }
+                col: self._column_summary(col, score)
                 for col, score in self.result.column_stats.items()
             },
+        }
+
+        scope = self._stats_scope()
+        if scope:
+            summary["stats_scope"] = scope
+
+        uniqueness = self._id_uniqueness()
+        if uniqueness:
+            summary["id_uniqueness"] = uniqueness
+
+        if self.result.mixed_blank_key_groups is not None:
+            summary["mixed_blank_key_groups"] = self.result.mixed_blank_key_groups
+
+        summary["trust_warnings"] = self.trust_warnings()
+        summary["trustworthy"] = not summary["trust_warnings"]
+        summary["has_differences"] = self.has_differences()
+
+        return summary
+
+    def _id_uniqueness(self) -> Optional[Dict]:
+        """Per-side duplicate-key counts
+
+        Duplicate keys make the join pair rows cartesian-style, which invents
+        per-column differences, so this belongs in the report rather than in a
+        stderr warning nobody keeps.
+        """
+        if self.id_duplicates is None:
+            return None
+
+        uniqueness = {}
+        for side, duplicates in self.id_duplicates.items():
+            uniqueness[side] = {
+                "duplicate_key_groups": len(duplicates),
+                "duplicate_rows": sum(dup["count"] for dup in duplicates),
+                "examples": [dup["id_values"] for dup in duplicates[:5]],
+            }
+        return uniqueness
+
+    NOT_APPLICABLE = "n/a"
+
+    def _column_summary(self, col: str, score: Optional[float]) -> Dict:
+        """Per-column stats, with direction and coverage where available
+
+        score is None when nothing was paired up, in which case a match
+        percentage does not exist and must not be invented.
+        """
+        if score is None:
+            stats = {
+                "match_percentage": self.NOT_APPLICABLE,
+                "difference_percentage": self.NOT_APPLICABLE,
+            }
+        else:
+            stats = {
+                "match_percentage": f"{score*100:.1f}%",
+                "difference_percentage": f"{(1-score)*100:.1f}%",
+            }
+
+        if self.result.column_directions and col in self.result.column_directions:
+            stats["directions"] = self.result.column_directions[col]
+
+        if self.result.column_coverage and col in self.result.column_coverage:
+            coverage = self.result.column_coverage[col]
+            stats["coverage"] = coverage
+            stats["vacuous"] = (
+                coverage["source1_non_blank"] == 0
+                and coverage["source2_non_blank"] == 0
+            )
+
+        return stats
+
+    def _id_columns(self) -> List[str]:
+        """The key columns, for labelling difference rows"""
+        if self.result.id_columns:
+            return list(self.result.id_columns)
+
+        return [
+            col
+            for col in self.result.differences.columns
+            if not col.endswith(("_source1", "_source2"))
+        ]
+
+    def trust_warnings(self) -> List[str]:
+        """Reasons the numbers above should not be quoted as evidence
+
+        Each of these states looks identical to a clean run in the summary
+        alone, which is how this tool gets cited as proof of no loss.
+        """
+        warnings = []
+
+        if self.id_duplicates:
+            for side, duplicates in self.id_duplicates.items():
+                if duplicates:
+                    warnings.append(
+                        f"the key is not unique in {side} "
+                        f"({len(duplicates)} duplicate key group(s)); pairing is "
+                        f"cartesian and per-column differences may be invented"
+                    )
+
+        if self.result.common_row_count is not None:
+            excluded = len(self.result.unique_to_source1) + len(
+                self.result.unique_to_source2
+            )
+            if self.result.common_row_count == 0:
+                warnings.append(
+                    "no rows paired up, so the column statistics cover nothing"
+                )
+            elif excluded:
+                warnings.append(
+                    f"{excluded} row(s) are unique to one side and are excluded "
+                    f"from every column percentage"
+                )
+
+        vacuous = self.vacuous_columns()
+        if vacuous:
+            warnings.append(
+                f"blank on every compared row of both sides, so their match "
+                f"percentage is vacuous: {', '.join(vacuous)}"
+            )
+
+        return warnings
+
+    def has_differences(self) -> bool:
+        """Whether anything at all differs between the two sides"""
+        return bool(
+            self.result.differences.height
+            or self.result.unique_to_source1.height
+            or self.result.unique_to_source2.height
+        )
+
+    def vacuous_columns(self) -> List[str]:
+        """Compared columns that were blank on every row of both sides"""
+        if not self.result.column_coverage:
+            return []
+
+        return [
+            col
+            for col, coverage in self.result.column_coverage.items()
+            if coverage["source1_non_blank"] == 0
+            and coverage["source2_non_blank"] == 0
+        ]
+
+    def _stats_scope(self) -> Optional[Dict]:
+        """How many rows the column statistics were computed over
+
+        The percentages in column_statistics only cover rows present on both
+        sides, so a reader needs these counts to tell "no differences" from
+        "nothing was paired up".
+        """
+        if self.result.common_row_count is None:
+            return None
+
+        return {
+            "rows_compared": self.result.common_row_count,
+            "joined_rows": self.result.joined_row_count,
+            "rows_excluded_as_unique": len(self.result.unique_to_source1)
+            + len(self.result.unique_to_source2),
         }
 
     def to_console(self, show_diff: bool = True) -> str:
@@ -78,23 +238,116 @@ class ReportGenerator:
             f"  Rows with differences: {Fore.YELLOW}{summary['row_counts']['differences']}{Style.RESET_ALL}\n"
         )
 
+        # ID uniqueness
+        if "id_uniqueness" in summary:
+            output.append(f"{Style.BRIGHT}ID Uniqueness:{Style.RESET_ALL}")
+            if any(
+                side["duplicate_key_groups"]
+                for side in summary["id_uniqueness"].values()
+            ):
+                for side, stats in summary["id_uniqueness"].items():
+                    groups = stats["duplicate_key_groups"]
+                    color = Fore.RED if groups else Fore.GREEN
+                    output.append(
+                        f"  {side}: {color}{groups} duplicate key group(s) "
+                        f"covering {stats['duplicate_rows']} rows{Style.RESET_ALL}"
+                    )
+                    for example in stats["examples"]:
+                        output.append(f"    e.g. {example}")
+                output.append(
+                    f"  {Fore.RED}Duplicate keys pair rows cartesian-style; "
+                    f"per-column differences below may be an artefact"
+                    f"{Style.RESET_ALL}"
+                )
+            else:
+                output.append(
+                    f"  {Fore.GREEN}Key is unique on both sides{Style.RESET_ALL}"
+                )
+            output.append("")
+
         # Column statistics
         output.append(f"{Style.BRIGHT}Column Statistics:{Style.RESET_ALL}")
-        for col, stats in summary["column_statistics"].items():
-            match_pct = float(stats["match_percentage"].rstrip("%"))
-            color = (
-                Fore.GREEN
-                if match_pct >= 90
-                else (Fore.YELLOW if match_pct >= 70 else Fore.RED)
+        if "stats_scope" in summary:
+            scope = summary["stats_scope"]
+            output.append(
+                f"  {Fore.CYAN}Column statistics computed over "
+                f"{scope['rows_compared']} of {scope['joined_rows']} joined rows "
+                f"({scope['rows_excluded_as_unique']} excluded as unique to one "
+                f"side){Style.RESET_ALL}"
             )
+        for col, stats in summary["column_statistics"].items():
+            if stats["match_percentage"] == self.NOT_APPLICABLE:
+                color = Fore.YELLOW
+            else:
+                match_pct = float(stats["match_percentage"].rstrip("%"))
+                color = (
+                    Fore.GREEN
+                    if match_pct >= 90
+                    else (Fore.YELLOW if match_pct >= 70 else Fore.RED)
+                )
 
             output.append(f"  {col}:")
+            vacuous_note = (
+                f" {Fore.RED}(0 non-blank rows: vacuous){Style.RESET_ALL}"
+                if stats.get("vacuous")
+                else ""
+            )
             output.append(
                 f"    Match: {color}{stats['match_percentage']}{Style.RESET_ALL}"
+                f"{vacuous_note}"
             )
             output.append(
                 f"    Diff:  {color}{stats['difference_percentage']}{Style.RESET_ALL}"
             )
+
+            if "directions" in stats:
+                directions = stats["directions"]
+                lost_color = Fore.RED if directions["lost"] else Fore.GREEN
+                output.append(
+                    f"    Agree: {directions['agree']}  "
+                    f"Changed: {directions['changed']}  "
+                    f"{lost_color}Lost: {directions['lost']}{Style.RESET_ALL}  "
+                    f"Gained: {directions['gained']}  "
+                    f"Blank both: {directions['blank_both']}"
+                )
+
+            if "coverage" in stats:
+                coverage = stats["coverage"]
+                output.append(
+                    f"    Non-blank rows: source1={coverage['source1_non_blank']}, "
+                    f"source2={coverage['source2_non_blank']} "
+                    f"of {coverage['rows']} compared"
+                )
+
+        warnings = summary["trust_warnings"]
+        output.append("")
+        output.append(f"{Style.BRIGHT}Trust:{Style.RESET_ALL}")
+        if warnings:
+            output.append(
+                f"  {Fore.RED}This comparison should not be quoted as evidence:"
+                f"{Style.RESET_ALL}"
+            )
+            for warning in warnings:
+                output.append(f"  {Fore.RED}- {warning}{Style.RESET_ALL}")
+        else:
+            output.append(
+                f"  {Fore.GREEN}No trust warnings{Style.RESET_ALL}"
+            )
+
+        if self.result.mixed_blank_key_groups is not None:
+            mixed = self.result.mixed_blank_key_groups
+            output.append("")
+            output.append(f"{Style.BRIGHT}Non-Vacuity:{Style.RESET_ALL}")
+            output.append(
+                f"  Key groups mixing blank and non-blank values in a compared "
+                f"column: source1={mixed['source1']}, source2={mixed['source2']}"
+            )
+            if not any(mixed.values()):
+                output.append(
+                    f"  {Fore.YELLOW}No key group can express a blank-versus-"
+                    f"populated pairing; a clean result here proves little"
+                    f"{Style.RESET_ALL}"
+                )
 
         return output
 
@@ -198,8 +451,14 @@ class ReportGenerator:
         }
 
         # Add detailed differences
+        id_columns = self._id_columns()
         for row in self.result.differences.iter_rows(named=True):
-            diff_entry = {"id": row["id"], "changes": {}}
+            ids = {col: row[col] for col in id_columns if col in row}
+            diff_entry = {
+                "id": next(iter(ids.values())) if len(ids) == 1 else ids,
+                "ids": ids,
+                "changes": {},
+            }
 
             # Calculate specific changes
             for col in self.result.column_stats.keys():
@@ -237,14 +496,81 @@ class ReportGenerator:
                 writer.writerow([key, value])
             writer.writerow([])
 
+            # Write trust state
+            writer.writerow(["Trust"])
+            writer.writerow(["trustworthy", summary["trustworthy"]])
+            for warning in summary["trust_warnings"]:
+                writer.writerow(["warning", warning])
+            writer.writerow([])
+
+            # Write ID uniqueness
+            if "id_uniqueness" in summary:
+                writer.writerow(["ID Uniqueness"])
+                writer.writerow(
+                    ["Side", "Duplicate Key Groups", "Duplicate Rows"]
+                )
+                for side, stats in summary["id_uniqueness"].items():
+                    writer.writerow(
+                        [
+                            side,
+                            stats["duplicate_key_groups"],
+                            stats["duplicate_rows"],
+                        ]
+                    )
+                writer.writerow([])
+
+            # Write the scope the column statistics cover
+            if "stats_scope" in summary:
+                writer.writerow(["Column Statistics Scope"])
+                for key, value in summary["stats_scope"].items():
+                    writer.writerow([key, value])
+                writer.writerow([])
+
             # Write column statistics
             writer.writerow(["Column Statistics"])
-            writer.writerow(["Column", "Match %", "Difference %"])
+            writer.writerow(
+                [
+                    "Column",
+                    "Match %",
+                    "Difference %",
+                    "Agree",
+                    "Changed",
+                    "Lost",
+                    "Gained",
+                    "Blank Both",
+                    "Source1 Non-blank",
+                    "Source2 Non-blank",
+                    "Rows Compared",
+                    "Vacuous",
+                ]
+            )
             for col, stats in summary["column_statistics"].items():
+                directions = stats.get("directions", {})
+                coverage = stats.get("coverage", {})
                 writer.writerow(
-                    [col, stats["match_percentage"], stats["difference_percentage"]]
+                    [
+                        col,
+                        stats["match_percentage"],
+                        stats["difference_percentage"],
+                        directions.get("agree", ""),
+                        directions.get("changed", ""),
+                        directions.get("lost", ""),
+                        directions.get("gained", ""),
+                        directions.get("blank_both", ""),
+                        coverage.get("source1_non_blank", ""),
+                        coverage.get("source2_non_blank", ""),
+                        coverage.get("rows", ""),
+                        stats.get("vacuous", ""),
+                    ]
                 )
             writer.writerow([])
+
+            if "mixed_blank_key_groups" in summary:
+                writer.writerow(["Non-Vacuity"])
+                writer.writerow(["Side", "Mixed Blank Key Groups"])
+                for side, count in summary["mixed_blank_key_groups"].items():
+                    writer.writerow([side, count])
+                writer.writerow([])
 
             # Write differences if any exist
             if self.result.differences.height > 0:
@@ -254,8 +580,11 @@ class ReportGenerator:
                 # Write modified rows
                 writer.writerow(["Modified Rows"])
                 writer.writerow(["ID", "Column", "Source 1 Value", "Source 2 Value"])
+                id_columns = self._id_columns()
                 for row in self.result.differences.iter_rows(named=True):
-                    id_str = f"id={row['id']}"
+                    id_str = ", ".join(
+                        f"{col}={row[col]}" for col in id_columns if col in row
+                    )
                     for col in self.result.column_stats.keys():
                         val1 = row.get(f"{col}_source1")
                         val2 = row.get(f"{col}_source2")

@@ -1,5 +1,5 @@
 import pytest
-from datacompare.id_handler import (
+from data_diff.id_handler import (
     IDHandler,
     FatalIDValidationError,
     WarningIDValidationError

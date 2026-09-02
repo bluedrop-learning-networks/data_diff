@@ -4,13 +4,14 @@ version = "0.1.0"
 description = "A command-line tool for comparing two data sources (CSV/JSONL) and identifying differences"
 requires-python = ">=3.11"
 dependencies = [
-    "pandas>=2.2.0",  # This will pull in a compatible numpy version automatically
+    "polars>=1.0.0",  # DataFrame engine used by the comparison engine
     "colorama>=0.4.6",  # For cross-platform colored output
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
+    "numpy>=1.26.0",  # test fixtures only
 ]
 
 [project.scripts]
